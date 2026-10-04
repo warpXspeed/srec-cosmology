@@ -1,41 +1,40 @@
-"""
-core.py — the only file that contains the raw physics.
-Never changes. Imported by every mode.
-"""
+# ======================================================================
+# Scalar Relaxation Cosmology - Core Physics Engine (Rev 3)
+# ======================================================================
 
 import numpy as np
 
-# ======================================================================
-# Universal constants
-# ======================================================================
-G_today          = 6.67430e-11                    # m³ kg⁻¹ s⁻²
-alpha_today      = 7.2973525693e-3                 # fine-structure constant today
-sec_per_yr       = 365.25 * 24 * 3600
-age_universe_sec = 13.787e9 * sec_per_yr           # seconds since Big Bang
+# Universal substrate parameters
+G_today          = 6.67430e-11        # m³ kg⁻¹ s⁻²
+c                = 2.99792458e8       # m s⁻¹
+a_c              = 1.20e-10           # m s⁻² (Substrate critical tension)
+alpha_today      = 7.2973525693e-3    # Fine-structure constant
+beta_g           = -4.8e-6            # Gravity coupling factor
+beta_gamma       =  5.5e-7            # EM relaxation factor
 
-# ======================================================================
-# Scalar field φ and effective couplings (the two β parameters)
-# ======================================================================
-beta_g     = -4.8e-6      # gravity gets stronger
-beta_gamma =  5.5e-7      # electromagnetism gets weaker
+def mu_interpolation(g_mag: float) -> float:
+    """
+    Corrected Rev 3 Constitutive Interpolation Function.
+    Replaces the divergent Rev 2 (1 + a_c/g) relation.
+    """
+    if g_mag <= 0.0:
+        return 0.0
+    return g_mag / (g_mag + a_c)
 
-def phi(t_sec: float) -> float:
-    """Scalar field — rolls from ≈0.82 (early universe) → 0 (today)."""
-    t_yr = t_sec / sec_per_yr
-    return 0.82 * (1.0 - t_yr / 13.8e9)
+def g_effective(M_baryon: float, r: float) -> float:
+    """
+    Computes real acceleration from baryonic mass under the corrected phi field.
+    Solves: g * mu(g / a_c) = G * M_b / r²
+    """
+    g_N = (G_today * M_baryon) / (r**2)
+    # Exact algebraic inversion of g² / (g + a_c) = g_N:
+    # g² - g_N * g - g_N * a_c = 0
+    g_real = 0.5 * (g_N + np.sqrt(g_N**2 + 4.0 * g_N * a_c))
+    return g_real
 
-def G_eff(t_sec: float) -> float:
-    return G_today * np.exp(-beta_g * phi(t_sec))
-
-def alpha_eff(t_sec: float) -> float:
-    return alpha_today * np.exp(beta_gamma * phi(t_sec))
-
-# ======================================================================
-# Periodic super-CME kicks (used by catastrophe modes)
-# ======================================================================
-def cme_kick(t_sec: float, period_yr: float, amplitude: float = 0.162) -> float:
-    """Single sinusoidal kick. Amplitude 0.162 → 162× spike."""
-    t_yr  = t_sec / sec_per_yr
-    phase = 2 * np.pi * (t_yr % period_yr) / period_yr
-    return 1.0 + amplitude * np.sin(phase)**2
-
+def v_rotational(M_baryon: float, r: float) -> float:
+    """
+    Computes orbital velocity showing flat rotation curve and BTFR.
+    """
+    g = g_effective(M_baryon, r)
+    return np.sqrt(r * g)
