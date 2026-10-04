@@ -29,7 +29,9 @@ The project aims to make its assumptions, equations, code, and unresolved questi
 ### Related theory documents
 
 - [Solar Furnace Model](./neutrinos/THEORY_SOLAR_FURNACE.md) — the proposed gravity–current–plasma model and its stated power calculation.
-- [Neutrino Substrate Framework](./neutrinos/neutrino-substrate-framework.md) — overview of the proposed substrate model.
+- [The Neutrino Substrate](./neutrinos/The%20Neutrino%20Substrate.md) — overview of the background vacuum medium.
+- [The Neutrino Condensate](./neutrinos/The%20Neutrino%20Condensate.md) — condensate mechanics.
+
 
 ## Running the simulator
 
