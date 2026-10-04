@@ -1,32 +1,41 @@
 # SREC — Scalar Relaxation Eddy Cosmology
 
-**One tiny scalar field. Two tiny numbers. The entire universe.**
+SREC is a developing physics framework and simulation project. This repository collects its working code, model proposals, analyses, and open technical questions.
 
-A single rolling scalar field φ changes only two things:
-- Gravity slowly gets stronger (β_g ≈ -4.8 × 10⁻⁶)
-- Electromagnetism slowly gets weaker (β_γ ≈ +5.5 × 10⁻⁷)
+The repository began as a scratchpad. Its files are being organized into a clearer structure, so some documentation and links may change as that work continues.
 
-These two changes explain:
-- galaxies without dark matter
-- planets and moons forming from plasma eddies (not random rocks)
-- the real 12.85 ka Younger Dryas catastrophe
-- the Hallstatt cycle that collapsed Bronze-Age civilisations
-- the final Oort-cloud collapse that will feed a dying Sun
-- the risk of a nova explosion when the feeding gets too strong
+## Project status
 
-### Three completely separate modes — you choose how deep you want to go
+The ideas in this repository are **proposals and working hypotheses**, not established findings. A simulation or a numerical match is not, by itself, evidence that the underlying physical explanation is correct.
 
-| Mode | What it shows | Command |
-|------|----------------|---------|
-| **solar** | Pure solar-system formation only (planets, moons, Oort cloud) | `./srec.py --mode solar` |
-| **catastrophe** | Only the 12.85 ka + Hallstatt reset cycles | `./srec.py --mode catastrophe` |
-| **full** | Full lifecycle from Big Bang to stellar death | `./srec.py --mode full` |
+The project aims to make its assumptions, equations, code, and unresolved questions easier to inspect. In particular, documentation should distinguish between:
+- assumptions or proposed mechanisms;
+- results calculated by the current code;
+- comparisons with observations; and
+- questions that remain unresolved.
 
-### Quick start (on any Linux / macOS / Windows)
+## Repository map
+
+- [`core.py`](./core.py) — shared constants and scalar-field functions.
+- [`srec.py`](./srec.py) — command-line launcher for the simulation modes in `modes/`.
+- [`modes/`](./modes/) — mode-specific simulation code.
+- [`neutrinos/`](./neutrinos/) — neutrino-substrate and solar-furnace model documents.
+- [`periodic/`](./periodic/) — periodic and reaction-engine materials.
+- [`planetary/`](./planetary/) — planetary and solar-system materials.
+- [`magnetism/`](./magnetism/) — magnetism-related materials.
+- [`docs/Why the Sun Has Not Burnt Out.md`](./docs/Why%20the%20Sun%20Has%20Not%20Burnt%20Out.md) — the SRC proposal for an externally powered solar model.
+- [`analysis/Solar-Galactic-event.md`](./analysis/Solar-Galactic-event.md) — an SRC interpretation of a proposed solar–galactic event.
+
+### Related theory documents
+
+- [Solar Furnace Model](./neutrinos/THEORY_SOLAR_FURNACE.md) — the proposed gravity–current–plasma model and its stated power calculation.
+- [Neutrino Substrate Framework](./neutrino-substrate-framework.md) — overview of the proposed substrate model.
+
+## Running the simulator
+
+The launcher accepts these modes:
 
 ```bash
-git clone https://github.com/ghenton/srec.git
-cd srec
-./srec.py --mode solar          # planets forming from eddies
-./srec.py --mode catastrophe   # Younger Dryas + Hallstatt events
-./srec.py --mode full           # the entire cosmic clock
+python3 srec.py --mode solar
+python3 srec.py --mode catastrophe
+python3 srec.py --mode full
