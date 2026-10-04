@@ -1,0 +1,139 @@
+======================================================================
+ SRC MAGNETIC TENSOR ENGINE v1.2
+======================================================================
+
+### Calibration anchors
+
+--- Iron (elemental): Fe ---
+    net moment     : 0.732 scale units
+    anisotropy K   : 0.33
+    Curie index    : 0.44  (>0.8 robust)
+    classification : SOFT FERROMAGNET (high permeability, low retention)
+    energy product ~ 0.11
+
+--- Cobalt (elemental): Co ---
+    net moment     : 0.539 scale units
+    anisotropy K   : 1.32
+    Curie index    : 0.56  (>0.8 robust)
+    classification : HARD FERROMAGNET (permanent)
+    energy product ~ 0.40
+
+--- Nickel (elemental): Ni ---
+    net moment     : 0.376 scale units
+    anisotropy K   : 0.12
+    Curie index    : 0.41  (>0.8 robust)
+    classification : SOFT FERROMAGNET (high permeability, low retention)
+    energy product ~ 0.02
+
+--- Zinc (elemental): Zn ---
+    net moment     : 0.000 scale units
+    anisotropy K   : 0.00
+    Curie index    : 0.00  (>0.8 robust)
+    classification : ANTIFERRO / DIAMAGNETIC (cancels or closed)
+    energy product ~ 0.00
+
+--- Copper (elemental): Cu ---
+    net moment     : 0.000 scale units
+    anisotropy K   : 0.00
+    Curie index    : 0.00  (>0.8 robust)
+    classification : ANTIFERRO / DIAMAGNETIC (cancels or closed)
+    energy product ~ 0.00
+
+### v1.2 validation: exchange-sign regime
+
+--- Manganese (elemental): Mn ---
+    net moment     : 0.000 scale units
+    anisotropy K   : 0.11
+    Curie index    : 0.41  (>0.8 robust)
+    classification : ANTIFERRO / DIAMAGNETIC (cancels or closed)
+    energy product ~ 0.00
+
+--- Chromium (elemental): Cr ---
+    net moment     : 0.000 scale units
+    anisotropy K   : 0.12
+    Curie index    : 0.41  (>0.8 robust)
+    classification : ANTIFERRO / DIAMAGNETIC (cancels or closed)
+    energy product ~ 0.00
+
+### Extreme magnets
+
+--- Nd2Fe14B (neodymium magnet): Nd2Fe14B ---
+    net moment     : 11.675 scale units
+    anisotropy K   : 2.65
+    Curie index    : 0.79  (>0.8 robust)
+    classification : HARD FERROMAGNET (permanent)
+    energy product ~ 24.57
+
+--- SmCo5 (samarium cobalt): SmCo5 ---
+    net moment     : 3.541 scale units
+    anisotropy K   : 5.13
+    Curie index    : 1.02  (>0.8 robust)
+    classification : HARD FERROMAGNET (extreme retention)
+    energy product ~ 18.52
+
+--- GdCo5 (heavy RE analog): GdCo5 ---
+    net moment     : 1.528 scale units
+    anisotropy K   : 6.47
+    Curie index    : 1.07  (>0.8 robust)
+    classification : HARD FERROMAGNET (extreme retention)
+    energy product ~ 10.62
+
+--- Dy-doped NdFeB (grade tuning): Nd2DyFe14B ---
+    net moment     : 11.127 scale units
+    anisotropy K   : 3.48
+    Curie index    : 0.88  (>0.8 robust)
+    classification : HARD FERROMAGNET (extreme retention)
+    energy product ~ 34.14
+
+### Oxides: sublattice cancellation regimes
+
+--- Fe3O4 (magnetite): Fe3O4 ---
+    sublattice (up/down): {'Fe': (2, 1)}
+    net moment     : 0.732 scale units
+    anisotropy K   : 0.14
+    Curie index    : 0.31  (>0.8 robust)
+    classification : FERRIMAGNETIC (incomplete sublattice cancellation)
+    energy product ~ 0.03
+
+--- MnO (antiferro): MnO ---
+    net moment     : 0.000 scale units
+    anisotropy K   : 0.06
+    Curie index    : 0.30  (>0.8 robust)
+    classification : ANTIFERRO / DIAMAGNETIC (cancels or closed)
+    energy product ~ 0.00
+
+--- NiO (antiferro): NiO ---
+    net moment     : 0.000 scale units
+    anisotropy K   : 0.06
+    Curie index    : 0.31  (>0.8 robust)
+    classification : ANTIFERRO / DIAMAGNETIC (cancels or closed)
+    energy product ~ 0.00
+
+--- SrFe12O19 (hexaferrite): SrFe12O19 ---
+    sublattice (up/down): {'Fe': (8, 4)}
+    net moment     : 2.927 scale units
+    anisotropy K   : 0.12
+    Curie index    : 0.31  (>0.8 robust)
+    classification : FERRIMAGNETIC (incomplete sublattice cancellation)
+    energy product ~ 0.11
+
+--- Y3Fe5O12 (YIG): Y3Fe5O12 ---
+    sublattice (up/down): {'Fe': (3, 2)}
+    net moment     : 0.732 scale units
+    anisotropy K   : 0.08
+    Curie index    : 0.31  (>0.8 robust)
+    classification : FERRIMAGNETIC (incomplete sublattice cancellation)
+    energy product ~ 0.02
+
+### Screening: rare-earth-free candidates
+
+======================================================================
+ SRC MAGNETIC SCREEN - ranked by energy product
+======================================================================
+  Co-Ti (buried asymmetry)         EP~  1.96   SOFT FERROMAGNET (high permeability, low retention)
+  Fe + Al + Co (Alnico analog)     EP~  1.05   SOFT FERROMAGNET (high permeability, low retention)
+  Fe-Co lattice (permendur)        EP~  0.46   SOFT FERROMAGNET (high permeability, low retention)
+  Fe + B anchor (Fe2B analog)      EP~  0.14   SOFT FERROMAGNET (high permeability, low retention)
+  Mn-rich (moment, low K)          EP~  0.00   ANTIFERRO / DIAMAGNETIC (cancels or closed) 
+
+

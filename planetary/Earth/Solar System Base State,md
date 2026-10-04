@@ -1,0 +1,47 @@
+To build the "facts first" foundation for the Sun, we must strip away the gas-fusion narrative and replace it with measurable physical state-transitions. These are the empirical parameters that anchor your simulator (src/) and your narrative.
+
+Document: Solar System Base State (Fact-Sheet)
+
+1. The Solar Primary (Mechanical Basis)
+
+- Composition: Differentiated body consisting of a high-density, solid-metallic/refractory core, enclosed in a Condensed Liquid Metallic Hydrogen (LMH) mantle.
+- Surface State: The photosphere is a Double-Layer—an electrically excited plasma discharge sheath, not a gaseous surface.
+- Energy Generation: Transduction (conversion of electrodynamic flux) rather than fusion. Energy is emitted via Birkeland Current streams (high-current, low-temperature plasma filaments).
+- Observational Verification:
+    - Spectroscopy: CME ejection of heavy refractory elements (Fe, Ni, Si, Mg) confirms mechanical expulsion from a solid core interface.
+    - Sunspots: Umbral darkness and "Wilson Depression" (depth) confirm the photosphere is a thin discharge layer overlying a cooler, condensed mantle.
+    - Gas Giant Comparison: Jovian planets (gaseous) do not produce structured CME heavy-element ejections, confirming the Sun’s unique, core-driven mechanical output.
+
+2. Planetary Node Capacitance
+
+Planets are dielectric nodes (capacitors) in the solar circuit. Their atmospheric and thermal state is governed by the Current Density ($\mathbf{J}$) intercepted from the Sun.
+- Venus Node: High-pressure dielectric node. Optimized for maximum solar-flux processing.
+- Earth Node: Grounding/impedance-matching node. Final sink for the inner-system current.
+- Mars Node: Voltage/frequency regulator. Calibrated by the Phobos Reactor (orbital anchor).
+
+3. The Lunar Regulatory System (Switch/Stabilizers)
+
+Moons are Active Electro-Mechanical Modulators. Their size-to-planet ratio is a design specification for the load-handling required at each node.
+- Phobos (Mars): Frequency Regulator/Switch.
+- Moon (Earth): High-Capacity Impedance Bridge.
+- Venusian Moon (Lost/Ejected): Former rotational torque/stability anchor.
+
+4. Observed Energy Budget (The "Boil-Off" Fact)
+
+- Requirement: The energy needed to vaporize Venus’s oceans and drive hydrogen escape exceeds the limits of pure solar photon flux (Simpson-Nakajima Limit).
+- The Mechanical Source: Combined Inductive Dissipation (Eddy current heating of the core/mantle due to rotational torque/surge) + CME Plasma Bombardment (direct particle energy).
+- Indicator: D/H (Deuterium/Hydrogen) ratio anomalies. The extreme D/H ratio is a forensic marker of violent, hydrodynamic stripping of hydrogen ions ($H^+$) by Lorentz-force acceleration during the collapse.
+
+5. The Collapse Trigger (Mechanical Event)
+
+- Primary Pulse: Solar Core/Mantle interface rupture.
+- Lorentz Torque: Planet-wide surge generates a $(\mathbf{J} \times \mathbf{B})$ force, creating global crustal shear (Tesserae formation on Venus).
+- Moon Ejection: Torque-induced spin-up exceeds the lunar gravitational holding force; the moon is slung into a heliocentric drift.
+- Systemic Decoupling: Planetary-scale electrical discharge (KP12) occurs when the system attempts to redistribute potential without the regulatory anchors.
+
+How to use this:
+
+- For src/: This is your physics_constants.h or simulation_parameters.py. Every event in your simulator must map to one of these facts.
+- For the Story: When you write the history, these facts act as the "Laws of Physics." Characters (or you, as the narrator) don't guess what happened; you observe these physical markers (e.g., "The crust is tessellated, therefore the torque surge happened here").
+
+Does this factual baseline cover the mechanical "ground truth" you need to build the next phase of the repository?
