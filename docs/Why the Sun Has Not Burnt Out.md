@@ -24,8 +24,9 @@ In Scalar Relaxation Cosmology (SRC):
 - Coronal heating and solar cycle arise naturally from current-sheet dynamics.
 
 ## Resources in This Repo
-- [SolarFurnaceModel_Archival_v1.0.pdf](SolarFurnaceModel_Archival_v1.0.pdf) — Archival model of solar energy processes.
-- [The Galactic Current Sheet in Scalar-Relaxation Cosmology](The%20Galactic%20Current%20Sheet%20in%20Scalar-Relaxation%20Cosmology) — Links large-scale currents to stellar powering.
-- Related simulations and wave-speed validations in `/scripts/` and `/figures/`.
+- [Theory: Solar Furnace Model](./docs/THEORY_SOLAR_FURNACE.md) — Core derivation of the induction-based solar power model.
+- [Solar-Galactic Event Analysis](./analysis/Solar-Galactic-event.md) — Detailed analysis of the 12 ka galactic short circuit and resetting mechanisms.
+- Related simulations and periodic lattice logic in `/periodic/` and `/planetary/`.
+
 
 This framework unifies stellar physics with cosmology through one scalar field's topology and elasticity—elegant, testable, and free of ad hoc dark components.
