@@ -1,3 +1,4 @@
+# Scalar Relaxation Cosmology (SRC)
 ---
 
 ## The Three Operational Modes
