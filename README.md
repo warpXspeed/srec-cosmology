@@ -50,11 +50,6 @@ The mathematical engine above rests on a unified physical picture, documented in
 
 See `docs/SRC_CORE_MECHANICS_OVERVIEW.md` for the master architectural overview tying all six principles into one causal pipeline.
 
----
-
-## Repository Structure
-
-\`\`\`text
 srec-cosmology/
 ├── README.md               # You are here
 ├── core.py                 # The ONLY file with raw physics: constants, φ field, Rev 3 gravity
@@ -94,9 +89,7 @@ srec-cosmology/
 ├── modes/                  # Runtime execution modules (solar_system, catastrophe_clock)
 ├── planetary/              # Orbital mechanics & 12 ka paleoclimate solvers
 └── periodic/               # Reaction engine v5 & harmonic spiral maps
-\`\`\`
 
----
 
 ## File Roles
 
