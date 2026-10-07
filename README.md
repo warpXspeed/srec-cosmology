@@ -50,6 +50,7 @@ The mathematical engine above rests on a unified physical picture, documented in
 
 See `docs/SRC_CORE_MECHANICS_OVERVIEW.md` for the master architectural overview tying all six principles into one causal pipeline.
 
+```text
 srec-cosmology/
 ├── README.md               # You are here
 ├── core.py                 # The ONLY file with raw physics: constants, φ field, Rev 3 gravity
@@ -57,7 +58,7 @@ srec-cosmology/
 │
 ├── docs/                   # Theory, derivations, and operational manuals
 │   ├── SRC_CORE_MECHANICS_OVERVIEW.md   # Master theoretical overview (all principles)
-│   ├── EVALUATION_REV3.md                # Current mathematical specification (Rev 3 closure)
+│   ├── EVALUATION_REV3.md               # Current mathematical specification (Rev 3 closure)
 │   ├── EVALUATION_REV2.md                # Archived: superseded field equation (historical record)
 │   ├── THEORY_SOLAR_FURNACE.md           # Full solar inductive-load derivation
 │   ├── CIRCUIT_DYNAMICS_AND_VALVES.md    # Recursive pinch-tension loop & spallation valves
@@ -66,30 +67,30 @@ srec-cosmology/
 │   │   └── plasma_dynamics.md            # Quiescent baseline, Z-pinches, current networks
 │   ├── 02_TOROIDAL_TOPOLOGY/
 │   │   ├── charge_as_vortex.md           # Hydrodynamic sinks/sources, chirality & antimatter
-│   │   └── atomic_double_torus.md       # Equatorial planes, chemical bonding resonance
+│   │   └── atomic_double_torus.md        # Equatorial planes, chemical bonding resonance
 │   ├── 03_NUCLEOSYNTHESIS_AND_DECAY/
-│   │   ├── dynamic_synthesis.md         # Z-pinch heavy element formation (Gold, Uranium)
-│   │   ├── harmonic_resonance_table.md  # Replacing the static Periodic Table
-│   │   └── induced_radioactivity.md     # Deterministic wave-stress failure (α, β, γ)
+│   │   ├── dynamic_synthesis.md          # Z-pinch heavy element formation (Gold, Uranium)
+│   │   ├── harmonic_resonance_table.md   # Replacing the static Periodic Table
+│   │   └── induced_radioactivity.md      # Deterministic wave-stress failure (α, β, γ)
 │   └── 04_DFM_ENGINE_MATHEMATICS/
-│       ├── riemann_theta_derivation.md  # Multi-periodic wave interference math
-│       ├── scale_invariance_proofs.md   # Micro-to-macro unified scaling (atoms to galaxies)
-│       └── inverse_solver_spec.md       # Reverse-engineering core spin/density from orbits
+│       ├── riemann_theta_derivation.md   # Multi-periodic wave interference math
+│       ├── scale_invariance_proofs.md    # Micro-to-macro unified scaling (atoms to galaxies)
+│       └── inverse_solver_spec.md        # Reverse-engineering core spin/density from orbits
 │
 ├── neutrinos/              # Substrate specifications & micro-mechanics
-│   ├── the-neutrino-substrate.md        # Continuum axioms, density, elastic modulus
-│   ├── The Neutrino Condensate.md       # Macroscopic quantum fluid properties
-│   ├── The Closed-Loop Photon.md        # Bound νν̄ pair topology
-│   └── Macro-Lattice Coupling.md        # Micro-vortex → macro-potential translation
+│   ├── the-neutrino-substrate.md         # Continuum axioms, density, elastic modulus
+│   ├── The Neutrino Condensate.md        # Macroscopic quantum fluid properties
+│   ├── The Closed-Loop Photon.md         # Bound νν̄ pair topology
+│   └── Macro-Lattice Coupling.md         # Micro-vortex → macro-potential translation
 │
 ├── analysis/               # Observational reconciliation & case studies
-│   ├── juno-jupiter-analysis.md         # Juno gravity harmonics vs. electromagnetic core
-│   └── Solar-Galactic-event.md         # The 12 ka reset: Younger Dryas, GCS crossing
+│   ├── juno-jupiter-analysis.md          # Juno gravity harmonics vs. electromagnetic core
+│   └── Solar-Galactic-event.md           # The 12 ka reset: Younger Dryas, GCS crossing
 │
 ├── modes/                  # Runtime execution modules (solar_system, catastrophe_clock)
 ├── planetary/              # Orbital mechanics & 12 ka paleoclimate solvers
 └── periodic/               # Reaction engine v5 & harmonic spiral maps
-
+```
 
 ## File Roles
 
