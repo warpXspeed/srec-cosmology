@@ -1,42 +1,72 @@
+# SREC-Cosmology: Galactic Module
 
-# Galaxtic: Plasma-Electrodynamic Diagnostic Engine
+Scalar Relaxation Cosmology (SRC) — a first-principles framework for
+galactic dynamics with **zero dark matter, zero dark energy, zero
+expanding metric**. This module audits galactic rotation telemetry and
+tests fluid-plasma substrate mechanisms against real data.
 
-A first-principles solver for calculating the electromagnetic current density ($J$) and magnetic field stress ($B_\phi$) required to maintain observed galactic rotation curves, using only baryonic input data.
+## Method: The Anti-Fudge Protocol
 
-## The Objective
-To move beyond "Dark Matter" as a gravitational fudge factor. This framework treats galaxies as electrodynamic circuits. It reverse-solves the required current density ($J$) to balance the rotation of stars after accounting for observed baryonic (gas + disk + bulge) matter.
+1. **No ghosts.** No invisible mass, no adjustable halos, no naming
+   the unmeasured and calling the name a measurement.
+2. **No rubber rulers.** The clean database uses only the 78 SPARC
+   galaxies with fixed-ruler (geometric) distances — TRGB, Cepheids,
+   masers — purged of Hubble-flow contamination.
+3. **No self-grading.** Every mechanism is stated with its
+   falsification condition BEFORE the test runs. Failed mechanisms go
+   in the ledger, not in a footnote.
+4. **Process over mirror.** Simulations here are generative process
+   engines, not curve-fitting spreadsheets. We do not tune a model to
+   hug a pre-filtered dataset; we run the physics and read the verdict.
 
-## Key Features
-- **He-Corrected Baryonics:** Accounts for Helium/molecular mass in gas contribution (1.33x factor).
-- **Bennett Pinch Diagnostic:** Calculates the magnetic pinch ratio ($P_{mag}/P_{plasma}$). A ratio > 1.0 identifies the transition point where electromagnetic confinement must dominate to prevent the observed rotation deficit.
-- **Transparent Derivation:** No invisible particles. No halo curve-fitting. Every output is a physical requirement derived from the observed rotation deficit.
+## Core empirical findings
 
-## How to use
-1. **Input:** Place a SPARC-formatted CSV in the directory (`r_kpc,v_obs_kms,v_gas_kms,v_disk_kms,v_bulge_kms`).
-2. **Execute:** `python3 inverse_current_solver_v2-1.py`
-3. **Audit:** The engine outputs a CSV log with the required current ($I$) and the physical pinch ratio.
+- 98.7% of clean-anchor galaxies never reach Keplerian decline.
+  Outer disks: 56.6% flat, 42.1% rising.
+- Flat vs. rising rotation separates cleanly by scale — a structural
+  signal, not noise.
+- The low-acceleration regime scales with a raw model-free slope of
+  **0.575** — between Newtonian mass (1.0) and pure response (0.5),
+  contradicting unseen-mass scaling.
+- A single universal coupling scale (a0 ≈ 3.55e-11 m/s²) tracks all
+  78 galaxies with zero per-galaxy parameters — the signature of a
+  medium response, not custom halos.
 
-## Philosophy
-- **Physicality over Fitting:** We do not tune parameters to hide discrepancies.
-- **Diagnostic Transparency:** The tool reports the required current as a mechanical necessity, not an ontological assumption.
-- **Falsifiable:** If the engine requires a pinch ratio that violates plasma stability limits (or exceeds measurable field strengths), the current hypothesis for that galaxy is falsified.
+## Repository layout
 
-## Roadmap
-- [ ] Automated batch processing for the full SPARC galaxy sample.
-- [ ] Integration of direct Faraday rotation observational constraints.
-- [ ] Refinement of the plasma density profile $\rho(r)$ from standard ISM models.
+| Path                                   | Contents                                                   |
+| -------------------------------------- | ---------------------------------------------------------- |
+| `clean_db/` + `build_clean_seed_db.py` | The 78 fixed-ruler anchor database                         |
+| `analyze_velocity_profile.py`          | Flat/rising/Keplerian census                               |
+| `analyze_flat_vs_rising.py`            | Scale-separation audit                                     |
+| `substrate_response_test.py`           | Universal response fit (the open door)                     |
+| `residual_error_audit.py`              | Error-bar audit + raw model-free slope                     |
+| `src_distance.py`                      | SRC aether-damping distance model                          |
+| `archive/falsified_tests/`             | Mechanisms tested and killed — kept as the audit trail     |
+| `archive/toy_sims/`                    | Process/demographic generators (labeled as such, honestly) |
+| `LEDGER.md`                            | Every mechanism, every test, every verdict                 |
 
-## Scientific Ledger & Limitations (The "Audit Log")
-This framework is currently a **local galactic diagnostic engine**. 
-* **Strengths:** Reproduces flat rotation curves using measured magnetic field scales (~1 μG) without non-baryonic mass.
-* **Open Challenges (The Priest's Stones):**
-    - **Cosmological Consistency:** This model has not yet computed the CMB power spectrum.
-    - **Collision Geometry:** The mechanism by which the electromagnetic field energy decouples from collisional gas during cluster collisions (like the Bullet Cluster) remains an active research problem.
-    - **Current Origin:** The framework derives the current requirement from the rotation curve; it does not yet propose the EMF source for the large-scale galactic circuit.
+## Honest status
 
-We invite open-source contributions to compute the CMB and structure formation spectra using the Einstein-Maxwell-Vlasov system. We prioritize verifiable field-theory derivations over the introduction of new, non-baryonic particle species.
+This framework does NOT claim a solved rotation curve. What it owns:
 
+- A clean telemetry foundation (78 geometric anchors).
+- Nine mechanisms honestly tested and falsified — including by our
+  own uncheated engine, which re-derives the dark matter problem from
+  first principles rather than hiding it.
+- Two measurements that survive: the universal response scale and the
+  0.575 raw slope.
+- A defined frontier: close the coupled force budget
+  (`−∂P/∂r + J×B + drag + viscosity = ρv²/r`) from measured medium
+  parameters, or falsify the route.
 
----
-*Developed as part of the Scalar Relaxation Cosmology (SRC) framework.*
+## Data sources
 
+SPARC mass models (Lelli, McGaugh, Schombert) — raw files included,
+unmodified. Distance anchors filtered to geometric methods only.
+
+## License & use
+
+See repo root. Scripts are plain Python 3 + NumPy. Run any test:
+read its printed falsification conditions first — that is the whole
+point.
