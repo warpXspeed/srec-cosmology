@@ -146,14 +146,3 @@ Every correction the process caught, including the ones the assistant introduced
 
 ---
 
-## Verify the two ambiguous files
-
-```bash
-# is the shape lab the fixed copy?
-grep -q 'META\[c\[0\]\]' current/atomic-shape-lab-drag-the-orbitals-match.html \
-  && echo "FIXED" || echo "OLD crashing version — re-save"
-
-# is the final console present anywhere?
-grep -l 'RELEASE 1.2.1' current/*.html archive/*.html 2>/dev/null \
-  || echo "1.2.1 not on disk — save it into current/"
-```
