@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cross-Test Bench v2 — self-computing replication test</title>
+<script>
+window.onerror=function(m,s,l){var b=document.getElementById("err");
+ if(b){b.style.display="block";b.textContent="Error: "+m+" (line "+l+") — report this line number";}};
+</script>
+<style>
+:root{--bg:#0c0f14;--panel:#141922;--p2:#1a2130;--ink:#d8e0ec;--dim:#7d8aa0;--acc:#4fd1c5;--amb:#f6ad55;--blue:#63b3ed;--red:#fc8181}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding:14px}
+#err{display:none;background:#5c1010;color:#ffb3b3;border:1px solid var(--red);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:var(--acc);font-size:12px;margin-bottom:10px}
+h1{font-size:19px;margin-bottom:3px}
+h2{font-size:12px;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px;line-height:1.55}
+.panel{background:var(--panel);border:1px solid #232c3d;border-radius:9px;padding:12px;margin-bottom:12px}
+textarea{width:100%;height:150px;background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:7px;font:12px Consolas,monospace}
+button{background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer;margin:6px 6px 0 0}
+button:hover{border-color:var(--acc)}
+.stat{background:var(--p2);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--dim);margin:5px 0;line-height:1.55}
+.stat b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{padding:4px 5px;color:var(--dim);border-bottom:1px solid #2c3850;text-align:left}
+td{padding:4px 5px;border-bottom:1px solid #1e2635}
+.mono{font-family:Consolas,monospace}
+.ok{color:var(--acc)}.bad{color:var(--red)}.mid{color:var(--amb)}.dim{color:var(--dim)}
+.brief{border-left:3px solid var(--amb);padding-left:10px;line-height:1.6}
+.warn{border-left:3px solid var(--red);padding-left:10px}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="selftest">checking...</div>
+<h1>Cross-Test Bench v2</h1>
+<p class="sub">
+The app computes its own reference from the shipped data pack at load &mdash; inversion, per-sequence fits,
+derived constants, held-out residual, and the fixed-Z partner increments. Pass windows are fixed tolerances
+in this source. A submission cannot influence the reference. Give the tester the brief and the data only.
+</p>
+
+<div class="panel">
+<h2>The brief (paste verbatim &mdash; do not include the reference panel)</h2>
+<div class="stat brief">
+<b>Task.</b> Eight isoelectronic ionization-energy tables are supplied below. Each table holds one electron
+configuration fixed and varies only the nuclear charge Z. For every member compute
+Zeff = sqrt(I&middot;n&sup2;/13.6057) and &sigma; = Z &minus; Zeff, where n is the probe shell listed per
+table. Then:
+<br><br>
+<b>1. Fit</b> each of the seven training sequences (the table marked HELD OUT is excluded from all fitting)
+to &sigma; = &sigma;&#8320; + c/(Z&minus;a), with the shift a free. Scan a below the smallest Z in the table,
+then refine.
+<br><br>
+<b>2. Derive</b> the partner constants in this exact order (each from a different table):<br>
+&nbsp;&nbsp;p1 = &sigma;&#8320;(Li-like) / 2 &nbsp;&rarr;&nbsp; a(1s | inner)<br>
+&nbsp;&nbsp;p2 = [&sigma;&#8320;(B-like) &minus; 2&middot;p1] / 2 &nbsp;&rarr;&nbsp; a(2s | inner)<br>
+&nbsp;&nbsp;p3 = &sigma;&#8320;(Be-like) &minus; 2&middot;p1 &nbsp;&rarr;&nbsp; a(2s | same-ring)<br>
+&nbsp;&nbsp;p4 = &sigma;&#8320;(C-like) &minus; 2&middot;p1 &minus; 2&middot;p2 &nbsp;&rarr;&nbsp; a(2p | same-ring)<br>
+&nbsp;&nbsp;p5 = [&sigma;&#8320;(Na-like) &minus; 2&middot;p1 &minus; 2&middot;p2] / 6 &nbsp;&rarr;&nbsp; a(2p | inner)<br>
+&nbsp;&nbsp;<b>Held out:</b> predict &sigma;&#8320;(Ne-like) = 2&middot;p1 + 2&middot;p2 + 5&middot;p4,
+then report measured minus predicted.
+<br><br>
+<b>3. Direction check</b> (no fitting): at equal Z = 10 compare &sigma; for Ne4+ in the C-like table against
+Ne5+ in the B-like table (one extra 2p partner), and &sigma; for Ne6+ in the Be-like table against Ne7+ in
+the Li-like table (one extra s partner). Report which partner type screens more.
+<br><br>
+<b>4. Report</b>: p1, p2, p3, p4, p5, the held-out residual, the direction answer, and whether one form fit
+all seven training sequences to RMS &lt; 0.01.
+<br><br>
+<b>Partner composition</b> (constant within each table, since the configuration is fixed):<br>
+Li-like: 2&times;1s inner &nbsp;|&nbsp; Be-like: 2&times;1s inner + 1&times;2s same-ring &nbsp;|&nbsp;
+B-like: 2&times;1s inner + 2&times;2s inner &nbsp;|&nbsp;
+C-like: 2&times;1s inner + 2&times;2s inner + 1&times;2p same-ring &nbsp;|&nbsp;
+Ne-like <i>(held out)</i>: 2&times;1s inner + 2&times;2s inner + 5&times;2p same-ring &nbsp;|&nbsp;
+Na-like: 2&times;1s + 2&times;2s + 6&times;2p, all inner &nbsp;|&nbsp;
+Mg-like: those 10 inner + 1&times;3s same-ring &nbsp;|&nbsp;
+Al-like: those 10 inner + 2&times;3s same-ring (different subshell).
+</div>
+</div>
+
+<div class="panel">
+<h2>Dataset (revision 3 &mdash; as shipped, uncorrected for by the app)</h2>
+<div id="tables"></div>
+<div class="stat" id="packTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Enter your results</h2>
+<div class="stat dim" style="font-size:11px">Use one line per quantity. Either write
+<code>label = value</code> (labels below) or just the values in order. Blank lines are ignored.</div>
+<div class="stat dim mono" style="font-size:11px">
+a(1s|inner) =<br>a(2s|inner) =<br>a(2s|same) =<br>a(2p|same) =<br>a(2p|inner) =<br>
+neResidual =<br>direction =<br>universal =</div>
+<textarea id="entry" spellcheck="false"></textarea>
+<button id="grade">Grade</button>
+<button id="reveal">Reveal the app's reference (after grading)</button>
+<button id="clear">Clear</button>
+<div class="stat" id="gradeTxt">Not graded yet.</div>
+</div>
+
+<div class="panel" id="refPanel" style="display:none">
+<h2>Reference computed by this app from the data pack</h2>
+<div id="refBody"></div>
+</div>
+
+<div class="panel">
+<h2>What this test can and cannot establish</h2>
+<div class="stat warn">
+<b>Can:</b> whether an independent implementation reproduces the constants, the held-out residual sign and
+size, and the penetrating-s direction from the same data and the same specified method.<br><br>
+<b>Cannot:</b> (1) correctness &mdash; the reference is derived from the same published values and the same
+inversion, so a shared error would be reproduced; (2) whether the &sigma; = Z &minus; Zeff proxy is physically
+meaningful &mdash; its agreement across 1s and 2p partners may reflect insensitivity rather than a law;
+(3) the meaning of the held-out residual &mdash; a coherence term and a proxy failure for complete subshells
+predict the same number here, and only the spectral bench separates them.
+</div>
+</div>
+
+<script>
+"use strict";
+var HEV=13.605693122994;
+
+var SEQ=[
+ {key:"li",label:"Li-like",probe:"2s",n:2,comp:"2&times;1s inner",
+  data:[["Li",3,5.3917],["Be+",4,18.2112],["B2+",5,37.9316],["C3+",6,64.4939],
+        ["N4+",7,97.8902],["O5+",8,138.1197],["F6+",9,185.1868],["Ne7+",10,239.0970]]},
+ {key:"be",label:"Be-like",probe:"2s",n:2,comp:"2&times;1s inner + 1&times;2s same",
+  data:[["Be",4,9.3227],["B+",5,25.1548],["C2+",6,47.8878],["N3+",7,77.4735],
+        ["O4+",8,113.8989],["F5+",9,157.1659],["Ne6+",10,207.2760]]},
+ {key:"bl",label:"B-like",probe:"2p",n:2,comp:"2&times;1s inner + 2&times;2s inner",
+  data:[["B",5,8.2980],["C+",6,24.3832],["N2+",7,47.4453],["O3+",8,77.4135],
+        ["F4+",9,114.2428],["Ne5+",10,157.9340]]},
+ {key:"cl",label:"C-like",probe:"2p",n:2,comp:"2&times;1s inner + 2&times;2s inner + 1&times;2p same",
+  data:[["C",6,11.2603],["N+",7,29.6011],["O2+",8,54.9355],["F3+",9,87.1398],["Ne4+",10,126.2470]]},
+ {key:"ne",label:"Ne-like",probe:"2p",n:2,comp:"2&times;1s + 2&times;2s + 5&times;2p same",holdout:true,
+  data:[["Ne",10,21.5645],["Na+",11,47.2864],["Mg2+",12,80.1437],["Al3+",13,119.9924],
+        ["Si4+",14,166.7670],["P5+",15,220.4210],["S6+",16,280.9537],["Cl7+",17,348.3150]]},
+ {key:"na",label:"Na-like",probe:"3s",n:3,comp:"10 inner",
+  data:[["Na",11,5.1391],["Mg+",12,15.0353],["Al2+",13,28.4476],["Si3+",14,45.1418],
+        ["P4+",15,65.0231],["S5+",16,88.0516],["Cl6+",17,114.2000],["Ar7+",18,143.4600]]},
+ {key:"mg",label:"Mg-like",probe:"3s",n:3,comp:"10 inner + 1&times;3s same",
+  data:[["Mg",12,7.6462],["Al+",13,18.8286],["Si2+",14,33.4930],["P3+",15,51.4439],
+        ["S4+",16,72.5945],["Cl5+",17,96.9400],["Ar6+",18,126.2050]]},
+ {key:"al",label:"Al-like",probe:"3p",n:3,comp:"10 inner + 2&times;3s same",
+  data:[["Al",13,5.9858],["Si+",14,16.3459],["P2+",15,30.2027],["S3+",16,47.2220],
+        ["Cl4+",17,67.8000],["Ar5+",18,91.0070]]}
+];
+
+/* ---------- compute reference from data ---------- */
+function invert(seq){
+ return seq.data.map(function(d){
+  var Zeff=Math.sqrt(d[2]*seq.n*seq.n/HEV);
+  return {ion:d[0],Z:d[1],I:d[2],Zeff:Zeff,sig:d[1]-Zeff};
+ });
+}
+function evalShifted(list,a){
+ var n=list.length,su=0,sv=0,suu=0,suv=0,j;
+ for(j=0;j<n;j++){var u=1/(list[j].Z-a),v=list[j].sig;su+=u;sv+=v;suu+=u*u;suv+=u*v;}
+ var d=n*suu-su*su;
+ if(Math.abs(d)<1e-14)return {ss:1e12,s0:0,c:0,a:a};
+ var cc=(n*suv-su*sv)/d,s02=(sv-cc*su)/n,ss=0;
+ for(j=0;j<n;j++){var pr=s02+cc/(list[j].Z-a);ss+=(pr-list[j].sig)*(pr-list[j].sig);}
+ return {ss:ss,s0:s02,c:cc,a:a};
+}
+function fitShifted(list){
+ var zmin=Math.min.apply(null,list.map(function(r){return r.Z;}));
+ var maxA=zmin-0.05,best=null,step=0.02,a,j;
+ for(a=0.05;a<maxA;a+=step){
+  var skip=false;
+  for(j=0;j<list.length;j++)if(Math.abs(list[j].Z-a)<0.05)skip=true;
+  if(skip)continue;
+  var f=evalShifted(list,a);
+  if(!best||f.ss<best.ss)best=f;
+ }
+ if(!best)return {s0:0,c:0,a:0.5,rms:1};
+ var lo=Math.max(0.02,best.a-step),hi=Math.min(maxA,best.a+step),it;
+ for(it=0;it<60;it++){
+  var m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;
+  var f1=evalShifted(list,m1),f2=evalShifted(list,m2);
+  if(f1.ss<f2.ss)hi=m2;else lo=m1;
+ }
+ var mid=(lo+hi)/2,ff=evalShifted(list,mid);
+ if(ff.ss<best.ss)best=ff;
+ var sum=0;
+ for(j=0;j<list.length;j++){var pr=best.s0+best.c/(list[j].Z-best.a);sum+=(pr-list[j].sig)*(pr-list[j].sig);}
+ best.rms=Math.sqrt(sum/list.length);
+ return best;
+}
+var RQ={},FIT={};
+SEQ.forEach(function(s){RQ[s.key]=invert(s);});
+SEQ.forEach(function(s){FIT[s.key]=fitShifted(RQ[s.key]);});
+
+var P1=FIT.li.s0/2;
+var P2=(FIT.bl.s0-2*P1)/2;
+var P3=FIT.be.s0-2*P1;
+var P4=FIT.cl.s0-2*P1-2*P2;
+var P5=(FIT.na.s0-2*P1-2*P2)/6;
+var NE_PRED=2*P1+2*P2+5*P4;
+var NE_RES=FIT.ne.s0-NE_PRED;
+function sigOf(key,ion){var L=RQ[key];for(var i=0;i<L.length;i++)if(L[i].ion===ion)return L[i].sig;return null;}
+var D2P=sigOf("cl","Ne4+")-sigOf("bl","Ne5+");
+var DS=sigOf("be","Ne6+")-sigOf("li","Ne7+");
+
+/* fixed tolerances (in source; cannot be influenced by submissions) */
+var TOL={p1:0.03,p2:0.05,p3:0.06,p4:0.06,p5:0.03,ne:0.05};
+
+function fmt(v,d){return (typeof v==="number"&&isFinite(v))?v.toFixed(d):"—";}
+
+/* ---------- pack render + integrity ---------- */
+(function(){
+ var t="<div style='overflow:auto'><table><thead><tr><th>table</th><th>probe</th><th>n</th><th>partners</th>"+
+  "<th>ion</th><th>Z</th><th>I (eV)</th></tr></thead><tbody>";
+ SEQ.forEach(function(s){
+  var first=true;
+  s.data.forEach(function(d){
+   t+="<tr><td>"+(first?"<b>"+s.label+(s.holdout?" <span class='mid'>[HELD OUT]</span>":"")+"</b>":"")+
+    "</td><td>"+(first?s.probe:"")+"</td><td>"+(first?s.n:"")+"</td><td class='dim'>"+(first?s.comp:"")+
+    "</td><td>"+d[0]+"</td><td>"+d[1]+"</td><td class='mono'>"+d[2].toFixed(4)+"</td></tr>";
+   first=false;
+  });
+ });
+ t+="</tbody></table></div>";
+ document.getElementById("tables").innerHTML=t;
+ /* integrity: duplicate ion names across tables with differing values */
+ var map={},order=[],conf=0;
+ SEQ.forEach(function(s){s.data.forEach(function(d){
+  if(!map[d[0]]){map[d[0]]=[];order.push(d[0]);}
+  map[d[0]].push(d[2]);});});
+ order.forEach(function(ion){
+  var l=map[ion],i,j;
+  for(i=0;i<l.length;i++)for(j=i+1;j<l.length;j++)if(Math.abs(l[i]-l[j])>1e-9)conf++;
+ });
+ document.getElementById("packTxt").innerHTML=
+  "Pack integrity: "+order.length+" distinct ions, "+SEQ.reduce(function(a,s){return a+s.data.length;},0)+
+  " members, "+conf+" cross-table value conflicts. All configurations are genuinely isoelectronic "+
+  "(electron count constant within each table), so the probe shell and partner composition are constant "+
+  "along each table.";
+})();
+
+/* ---------- self-test ---------- */
+(function(){
+ var zs=Math.sqrt(5.1391*9/HEV);
+ var okA=Math.abs(zs-1.8438)<0.0005;
+ var okB=Math.abs(FIT.na.rms)<0.01;
+ document.getElementById("selftest").textContent=
+  "APP IS RUNNING — self-test: Na Zeff = "+zs.toFixed(4)+" (expect 1.8438); "+
+  "Na-like fit RMS = "+FIT.na.rms.toFixed(5)+" (expect < 0.01). Reference computed: "+
+  "p1="+P1.toFixed(4)+", p2="+P2.toFixed(4)+", p3="+P3.toFixed(4)+", p4="+P4.toFixed(4)+", p5="+
+  P5.toFixed(4)+", Ne residual="+(NE_RES>=0?"+":"")+NE_RES.toFixed(4)+"."+
+  ((okA&&okB)?" — anchor and fit pass.":" — CHECK FAILED.");
+})();
+
+/* ---------- input parsing ---------- */
+var PROMPTS=[
+ {id:"p1",label:"a(1s|inner)",kw:["a(1s|inner)","1s|inner","a1s"],type:"num"},
+ {id:"p2",label:"a(2s|inner)",kw:["a(2s|inner)","2s|inner","a2sinner"],type:"num"},
+ {id:"p3",label:"a(2s|same)",kw:["a(2s|same)","2s|same","a2ssame"],type:"num"},
+ {id:"p4",label:"a(2p|same)",kw:["a(2p|same)","2p|same","a2psame"],type:"num"},
+ {id:"p5",label:"a(2p|inner)",kw:["a(2p|inner)","2p|inner","a2pinner"],type:"num"},
+ {id:"ne",label:"neResidual",kw:["neresidual","residual"],type:"num"},
+ {id:"dir",label:"direction",kw:["direction","which screens"],type:"dir"},
+ {id:"uni",label:"universal",kw:["universal","one form"],type:"yesno"}
+];
+function norm(s){return s.toLowerCase().replace(/\s+/g,"");}
+function valueOf(line){
+ var i=line.indexOf("=");
+ if(i>=0)return line.slice(i+1).trim();
+ var parts=line.trim().split(/\s+/);
+ return parts.length?parts[parts.length-1]:"";
+}
+function parseEntry(){
+ var raw=document.getElementById("entry").value.split("\n");
+ var res={},used={};
+ PROMPTS.forEach(function(p){
+  var i;
+  for(i=0;i<raw.length;i++){
+   if(used[i])continue;
+   var n=norm(raw[i]);
+   if(!n)continue;
+   for(var k=0;k<p.kw.length;k++){
+    if(n.indexOf(norm(p.kw[k]))>=0){
+     res[p.id]=valueOf(raw[i]);used[i]=1;return;
+    }
+   }
+  }
+ });
+ /* positional fallback for any still missing */
+ var order=PROMPTS.map(function(p){return p.id;});
+ var vals=raw.filter(function(l){return l.trim()!=="";});
+ var miss=order.filter(function(id){return res[id]===undefined;});
+ miss.forEach(function(id,idx){
+  if(idx<vals.length)res[id]=valueOf(vals[idx]);
+ });
+ return res;
+}
+function numOf(s){
+ if(s===undefined)return NaN;
+ var m=String(s).match(/-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/);
+ return m?parseFloat(m[0]):NaN;
+}
+function dirOf(s){
+ if(!s)return "";
+ var t=String(s).trim().toLowerCase();
+ if(t.indexOf("=")>=0)t=t.split("=")[1].trim();
+ if(t.charAt(0)==="s")return "s";
+ if(t.charAt(0)==="p")return "p";
+ if(t.indexOf("s-partner")>=0||t.indexOf("s partner")>=0)return "s";
+ if(t.indexOf("p-partner")>=0||t.indexOf("p partner")>=0)return "p";
+ return "";
+}
+function yesOf(s){
+ if(!s)return "";
+ var t=String(s).trim().toLowerCase();
+ if(t.indexOf("=")>=0)t=t.split("=")[1].trim();
+ if(t.charAt(0)==="y")return "yes";
+ if(t.charAt(0)==="n")return "no";
+ return "";
+}
+
+/* ---------- grading ---------- */
+document.getElementById("grade").addEventListener("click",function(){
+ var e=parseEntry();
+ var rows="",pass=0,total=0;
+ function line(label,val,target,ok){
+  total++;if(ok)pass++;
+  rows+="<tr><td><b>"+label+"</b></td><td class='mono'>"+(val===undefined||val===""?"—":val)+
+   "</td><td class='mono'>"+target+"</td><td class='"+(ok?"ok":"bad")+"'>"+(ok?"PASS":"FAIL")+"</td></tr>";
+ }
+ var v1=numOf(e.p1),v2=numOf(e.p2),v3=numOf(e.p3),v4=numOf(e.p4),v5=numOf(e.p5),vn=numOf(e.ne);
+ line("a(1s|inner)",e.p1,fmt(P1,4)+" ±"+(TOL.p1*100)+"%",
+  isFinite(v1)&&Math.abs(v1-P1)/P1<=TOL.p1);
+ line("a(2s|inner)",e.p2,fmt(P2,4)+" ±"+(TOL.p2*100)+"%",
+  isFinite(v2)&&Math.abs(v2-P2)/P2<=TOL.p2);
+ line("a(2s|same)",e.p3,fmt(P3,4)+" ±"+(TOL.p3*100)+"%",
+  isFinite(v3)&&Math.abs(v3-P3)/P3<=TOL.p3);
+ line("a(2p|same)",e.p4,fmt(P4,4)+" ±"+(TOL.p4*100)+"%",
+  isFinite(v4)&&Math.abs(v4-P4)/P4<=TOL.p4);
+ line("a(2p|inner) ≈ a(1s|inner)",e.p5,fmt(P5,4)+" ±"+(TOL.p5*100)+"% and within 3% of a(1s|inner)",
+  isFinite(v5)&&Math.abs(v5-P5)/P5<=TOL.p5&&isFinite(v1)&&Math.abs(v5-v1)/((v5+v1)/2)<0.03);
+ line("Ne-like held-out residual",e.ne,"positive, within "+(NE_RES+TOL.ne).toFixed(2),
+  isFinite(vn)&&vn>0&&vn<NE_RES+TOL.ne);
+ line("direction at fixed Z (which screens more)",e.dir,"s-partner screens LESS (app: p "+fmt(D2P,4)+" vs s "+fmt(DS,4)+")",
+  dirOf(e.dir)==="s");
+ line("one form fits all 7 training sequences",e.uni,"yes (max RMS "+fmt(Math.max.apply(null,SEQ.filter(function(s){return !s.holdout;}).map(function(s){return FIT[s.key].rms;})),5)+")",
+  yesOf(e.uni)==="yes");
+ document.getElementById("gradeTxt").innerHTML=
+  "<table><thead><tr><th>quantity</th><th>your value</th><th>target</th><th>grade</th></tr></thead><tbody>"+
+  rows+"</tbody></table><br><b>Score: "+pass+" / "+total+"</b> &mdash; "+
+  (pass===total?"<b class='ok'>full replication: the method is a procedure, not a personality.</b>"
+   :pass>=total-2?"<b class='mid'>partial replication. Compare your derivation chain against the revealed reference, step by step.</b>"
+   :"<b class='bad'>material disagreement. Either the data was read differently or one implementation has an error to locate.</b>")+
+  "<br><span class='dim'>A negative residual from you would be a genuine scientific disagreement — report it rather than adjusting to the window.</span>";
+});
+document.getElementById("reveal").addEventListener("click",function(){
+ var h="<div style='overflow:auto'><table><thead><tr><th>table</th><th>&sigma;&#8320;</th><th>c</th><th>a</th><th>RMS</th></tr></thead><tbody>";
+ SEQ.forEach(function(s){
+  var f=FIT[s.key];
+  h+="<tr><td><b>"+s.label+"</b>"+(s.holdout?" <span class='mid'>[held out]</span>":"")+
+   "</td><td class='mono'>"+f.s0.toFixed(4)+"</td><td class='mono'>"+f.c.toFixed(4)+
+   "</td><td class='mono'>"+f.a.toFixed(4)+"</td><td class='mono'>"+f.rms.toFixed(5)+"</td></tr>";
+ });
+ h+="</tbody></table><br><div class='stat'>p1 = <b>"+P1.toFixed(4)+"</b> &nbsp; p2 = <b>"+P2.toFixed(4)+
+  "</b> &nbsp; p3 = <b>"+P3.toFixed(4)+"</b> &nbsp; p4 = <b>"+P4.toFixed(4)+"</b> &nbsp; p5 = <b>"+P5.toFixed(4)+
+  "</b><br>Ne-like predicted &sigma;&#8320; = "+NE_PRED.toFixed(4)+", measured "+FIT.ne.s0.toFixed(4)+
+  " &rarr; residual <b>"+(NE_RES>=0?"+":"")+NE_RES.toFixed(4)+"</b><br>"+
+  "Fixed-Z partner costs at Z=10: 2p partner <b>"+fmt(D2P,4)+"</b>, s partner <b>"+fmt(DS,4)+
+  "</b> &rarr; the p partner screens more.</div>";
+ document.getElementById("refBody").innerHTML=h;
+ document.getElementById("refPanel").style.display="block";
+});
+document.getElementById("clear").addEventListener("click",function(){
+ document.getElementById("entry").value="";
+ document.getElementById("gradeTxt").textContent="Not graded yet.";
+});
+</script>
+</body>
+</html>

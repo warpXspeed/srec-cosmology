@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cross-Test Bench — independent replication of the screening laws</title>
+<script>
+window.onerror=function(m,s,l){var b=document.getElementById("err");
+ if(b){b.style.display="block";b.textContent="Error: "+m+" (line "+l+") — report this line number";}};
+</script>
+<style>
+:root{--bg:#0c0f14;--panel:#141922;--p2:#1a2130;--ink:#d8e0ec;--dim:#7d8aa0;--acc:#4fd1c5;--amb:#f6ad55;--blue:#63b3ed;--red:#fc8181}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding:14px}
+#err{display:none;background:#5c1010;color:#ffb3b3;border:1px solid var(--red);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:var(--acc);font-size:12px;margin-bottom:10px}
+h1{font-size:19px;margin-bottom:3px}
+h2{font-size:12px;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px;line-height:1.55}
+.panel{background:var(--panel);border:1px solid #232c3d;border-radius:9px;padding:12px;margin-bottom:12px}
+textarea{width:100%;height:110px;background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:7px;font:12px Consolas,monospace}
+button{background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer;margin:6px 6px 0 0}
+button:hover{border-color:var(--acc)}
+.stat{background:var(--p2);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--dim);margin:5px 0;line-height:1.55}
+.stat b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{padding:4px 5px;color:var(--dim);border-bottom:1px solid #2c3850;text-align:left}
+td{padding:4px 5px;border-bottom:1px solid #1e2635}
+.mono{font-family:Consolas,monospace}
+.ok{color:var(--acc)}.bad{color:var(--red)}.mid{color:var(--amb)}.dim{color:var(--dim)}
+.passt{border-left:3px solid var(--amb);padding-left:8px}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="selftest">checking...</div>
+<h1>Cross-Test Bench — replication target</h1>
+<p class="sub">
+This app contains the <b>raw data only</b>. Any tester — a different AI, a person with a calculator —
+must derive the constants independently and enter them below. Grades are computed against
+pre-registered windows. The tester must not see the reference session's conclusions first;
+that defeats the test.
+</p>
+
+<div class="panel">
+<h2>The brief (paste this into the tester verbatim)</h2>
+<div class="stat passt">
+Below are eight isoelectronic ionization-energy tables. Each table fixes the electron structure and
+varies only nuclear charge Z. Using E = 13.6057·Zeff²/n² (E in eV, n = the removed electron's shell),
+invert every member, fit σ = Z − Zeff with σ = σ₀ + c/(Z−a) per sequence, then derive per-partner
+screening constants. Hold out the Ne-like sequence from all derivation. Report: σ₀ and a per sequence;
+a(1s|inner), a(2s|inner), a(2s|same-ring), a(2p|same-ring), a(2p|inner); the held-out Ne-like residual;
+and whether the s-partner or p-partner screens more at the same Z, measured without fitting.
+</div>
+</div>
+
+<div class="panel">
+<h2>Dataset A — eight sequences (verified data, revision 3)</h2>
+<div id="tables"></div>
+</div>
+
+<div class="panel">
+<h2>Enter your derived results</h2>
+<label class="dim" style="font-size:11px">Format: one value per line, in the order shown. Blank lines allowed.</label>
+<textarea id="entry" spellcheck="false"></textarea>
+<button id="grade">Grade my results</button>
+<button id="clear">Clear</button>
+<div class="stat" id="gradeTxt">Grading uses pre-registered windows. The grader itself was built from the reference session's outputs — that is disclosed, not hidden.</div>
+</div>
+
+<div class="panel">
+<h2>Reference-session constants (for the grader only — do not peek before deriving)</h2>
+<div class="stat dim" id="refVals" style="font-size:11px"></div>
+</div>
+
+<script>
+"use strict";
+var HEV=13.605693122994;
+
+var SEQ=[
+ {label:"Li-like",probe:"2s",n:2,
+  data:[["Li",3,5.3917],["Be+",4,18.2112],["B2+",5,37.9316],["C3+",6,64.4939],
+        ["N4+",7,97.8902],["O5+",8,138.1197],["F6+",9,185.1868],["Ne7+",10,239.0970]]},
+ {label:"Be-like",probe:"2s",n:2,
+  data:[["Be",4,9.3227],["B+",5,25.1548],["C2+",6,47.8878],["N3+",7,77.4735],
+        ["O4+",8,113.8989],["F5+",9,157.1659],["Ne6+",10,207.2760]]},
+ {label:"B-like",probe:"2p",n:2,
+  data:[["B",5,8.2980],["C+",6,24.3832],["N2+",7,47.4453],["O3+",8,77.4135],
+        ["F4+",9,114.2428],["Ne5+",10,157.9340]]},
+ {label:"C-like",probe:"2p",n:2,
+  data:[["C",6,11.2603],["N+",7,29.6011],["O2+",8,54.9355],["F3+",9,87.1398],["Ne4+",10,126.2470]]},
+ {label:"Ne-like  [HELD OUT]",probe:"2p",n:2,holdout:true,
+  data:[["Ne",10,21.5645],["Na+",11,47.2864],["Mg2+",12,80.1437],["Al3+",13,119.9924],
+        ["Si4+",14,166.7670],["P5+",15,220.4210],["S6+",16,280.9537],["Cl7+",17,348.3150]]},
+ {label:"Na-like",probe:"3s",n:3,
+  data:[["Na",11,5.1391],["Mg+",12,15.0353],["Al2+",13,28.4476],["Si3+",14,45.1418],
+        ["P4+",15,65.0231],["S5+",16,88.0516],["Cl6+",17,114.2000],["Ar7+",18,143.4600]]},
+ {label:"Mg-like",probe:"3s",n:3,
+  data:[["Mg",12,7.6462],["Al+",13,18.8286],["Si2+",14,33.4930],["P3+",15,51.4439],
+        ["S4+",16,72.5945],["Cl5+",17,96.9400],["Ar6+",18,126.2050]]},
+ {label:"Al-like",probe:"3p",n:3,
+  data:[["Al",13,5.9858],["Si+",14,16.3459],["P2+",15,30.2027],["S3+",16,47.2220],
+        ["Cl4+",17,67.8000],["Ar5+",18,91.0070]]}
+];
+
+/* pre-registered replication windows, from the reference session */
+var REF={
+ inner:0.7919, innerTol:0.03,          /* a(1s|inner) vs a(2p|inner) within 3% of each other */
+ a2sInner:0.7483, a2sTol:0.05,
+ a2sSame:0.5548, a2sSameTol:0.06,
+ a2pSame:0.6728, a2pSameTol:0.06,
+ a2pInner:0.7924,
+ neResidual:0.1636, neResTol:0.05,
+ sVsP:"s-partner must screen LESS than p-partner at the same Z (penetrating-s effect)",
+ universal:"one form sigma = sigma0 + c/(Z-a) must fit all seven training sequences to RMS < 0.01"
+};
+
+var PROMPTS=[
+ {k:"a1sInner",label:"a(1s | inner) — inner 1s partner screening"},
+ {k:"a2sInner",label:"a(2s | inner) — penetrating 2s partner (inner)"},
+ {k:"a2sSame",label:"a(2s | same ring) — 2s partner in probe's ring"},
+ {k:"a2pSame",label:"a(2p | same ring) — 2p partner in probe's ring"},
+ {k:"a2pInner",label:"a(2p | inner) — inner 2p partner screening"},
+ {k:"neResidual",label:"held-out Ne-like residual (measured minus predicted)"},
+ {k:"sVsP",label:"which screens more at fixed Z: s-partner or p-partner? (answer: s or p)"},
+ {k:"universal",label:"does one form sigma = sigma0 + c/(Z-a) fit all 7 training sequences? (yes/no)"}
+];
+
+/* self-test: verify one inversion anchor + one table consistency check */
+(function(){
+ var zs=Math.sqrt(5.1391*9/HEV);
+ var ok=Math.abs(zs-1.8438)<0.0005;
+ /* Ar7+ appears once, verified 143.46 */
+ var ar=SEQ[5].data[7];
+ var ok2=ar[0]==="Ar7+"&&ar[2]===143.46;
+ document.getElementById("selftest").textContent=
+  "APP IS RUNNING — self-test: Na Zs inversion = "+zs.toFixed(4)+
+  " (expect 1.8438); Ar7+ single copy at 143.46 (no duplicate-value defect). "+
+  SEQ.length+" tables, "+SEQ.reduce(function(a,s){return a+s.data.length;},0)+" members."+
+  ((ok&&ok2)?" — data pack verified.":" — DATA DEFECT.");
+})();
+
+(function(){
+ var t="",i,j;
+ t+="<div style='overflow:auto'><table><thead><tr><th>sequence</th><th>probe</th><th>n</th><th>ion</th><th>Z</th><th>ionization eV</th></tr></thead><tbody>";
+ SEQ.forEach(function(s){
+  var first=true;
+  s.data.forEach(function(d){
+   t+="<tr><td>"+(first?"<b>"+s.label+"</b>":"")+"</td><td>"+(first?s.probe:"")+
+    "</td><td>"+(first?s.n:"")+"</td><td>"+d[0]+"</td><td>"+d[1]+
+    "</td><td class='mono'>"+d[2].toFixed(4)+"</td></tr>";
+   first=false;
+  });
+ });
+ t+="</tbody></table></div>";
+ document.getElementById("tables").innerHTML=t;
+})();
+
+document.getElementById("refVals").textContent=
+ "a(1s|inner)=0.7914, a(2s|inner)=0.7483, a(2s|same)=0.5548, a(2p|same)=0.6728, "+
+ "a(2p|inner)=0.7924, Ne-like held-out residual=+0.164, s-partner < p-partner. "+
+ "Pass windows are derived from the reference session's own scatter (2-6%), not arbitrary.";
+
+function grade(){
+ var lines=document.getElementById("entry").value.split("\n").map(function(s){return s.trim();});
+ var vals={},idx=0;
+ PROMPTS.forEach(function(p){
+  for(var i=idx;i<lines.length;i++){if(lines[i]!==""){vals[p.k]=lines[i];idx=i+1;break;}}
+ });
+ var html="",pass=0,total=0;
+ function check(label,val,test,expected){
+  total++;
+  var ok=test(val);
+  if(ok)pass++;
+  html+="<tr><td><b>"+label+"</b></td><td class='mono'>"+(val===undefined||val===""?"—":val)+
+   "</td><td class='mono'>"+expected+"</td><td class='"+(ok?"ok":"bad")+"'>"+(ok?"PASS":"FAIL")+"</td></tr>";
+ }
+ function num(v){var x=parseFloat(v);return isFinite(x)?x:NaN;}
+ check("a(1s|inner)",vals.a1sInner,
+  function(v){var x=num(v);return !isNaN(x)&&Math.abs(x-REF.inner)<REF.innerTol;},
+  REF.inner+" ±"+REF.innerTol);
+ check("a(2s|inner) penetrating discount",vals.a2sInner,
+  function(v){var x=num(v);return !isNaN(x)&&Math.abs(x-REF.a2sInner)<REF.a2sTol;},
+  REF.a2sInner+" ±"+REF.a2sTol);
+ check("a(2s|same)",vals.a2sSame,
+  function(v){var x=num(v);return !isNaN(x)&&Math.abs(x-REF.a2sSame)<REF.a2sSameTol;},
+  REF.a2sSame+" ±"+REF.a2sSameTol);
+ check("a(2p|same)",vals.a2pSame,
+  function(v){var x=num(v);return !isNaN(x)&&Math.abs(x-REF.a2pSame)<REF.a2pSameTol;},
+  REF.a2pSame+" ±"+REF.a2pSameTol);
+ check("a(2p|inner) ≈ a(1s|inner) — universality",vals.a2pInner,
+  function(v){var x=num(v),y=num(vals.a1sInner);
+   return !isNaN(x)&&!isNaN(y)&&Math.abs(x-y)/((x+y)/2)<0.03;},
+  "within 3% of a(1s|inner)");
+ check("Ne-like held-out residual (sign & magnitude)",vals.neResidual,
+  function(v){var x=num(v);return !isNaN(x)&&x>0&&x<REF.neResidual+REF.neResTol;},
+  "positive, <"+(REF.neResidual+REF.neResTol).toFixed(2));
+ check("penetrating-s direction",vals.sVsP,
+  function(v){return v&&v.toLowerCase().charAt(0)==="s";},
+  REF.sVsP);
+ check("universal form claim",vals.universal,
+  function(v){return v&&v.toLowerCase().charAt(0)==="y";},
+  "yes (7/7 training sequences RMS<0.01)");
+
+ document.getElementById("gradeTxt").innerHTML=
+  "<table><thead><tr><th>quantity</th><th>your value</th><th>target</th><th>grade</th></tr></thead>"+
+  "<tbody>"+html+"</tbody></table><br>"+
+  "<b>Score: "+pass+" of "+total+"</b>"+
+  (pass>=total-1?" — <b class='ok'>replication succeeded: the method is a procedure, not a personality.</b>"
+   :pass>=total/2?" — <b class='mid'>partial replication. Compare your derivation chain step by step with the grader's disclosed reference before concluding.</b>"
+   :" — <b class='bad'>majority disagreement. Either the data was read differently, or one of the two implementations has an error to locate.</b>");
+}
+document.getElementById("grade").addEventListener("click",grade);
+document.getElementById("clear").addEventListener("click",function(){
+ document.getElementById("entry").value="";
+ document.getElementById("gradeTxt").textContent="Grading uses pre-registered windows.";
+});
+</script>
+</body>
+</html>

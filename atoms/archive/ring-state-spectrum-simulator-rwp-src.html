@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ring-State Spectrum Simulator — rwp/src</title>
+<style>
+  :root {
+    --bg: #0c0f14;
+    --panel: #141922;
+    --panel2: #1a2130;
+    --ink: #d8e0ec;
+    --dim: #7d8aa0;
+    --accent: #4fd1c5;
+    --amber: #f6ad55;
+    --blue: #63b3ed;
+    --red: #fc8181;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    padding: 16px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--dim); font-size: 13px; margin-bottom: 14px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid #232c3d;
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  select, button {
+    background: var(--panel2);
+    color: var(--ink);
+    border: 1px solid #2c3850;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 14px;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .atomCanvasBox { text-align: center; }
+  canvas { display: block; margin: 0 auto; }
+  .stat {
+    background: var(--panel2);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    margin-top: 8px;
+    color: var(--dim);
+  }
+  .stat b { color: var(--ink); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin-top: 6px;
+  }
+  th {
+    text-align: left;
+    color: var(--dim);
+    font-weight: 600;
+    padding: 4px 6px;
+    border-bottom: 1px solid #2c3850;
+  }
+  td { padding: 4px 6px; border-bottom: 1px solid #1e2635; }
+  .ok { color: var(--accent); }
+  .miss { color: var(--red); }
+  .legend { font-size: 12px; color: var(--dim); margin-top: 6px; }
+  .legend span { display: inline-block; margin-right: 14px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  input[type=range] { width: 100%; }
+  label.small { font-size: 12px; color: var(--dim); display: block; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>Ring-State Spectrum Simulator</h1>
+<div class="sub">
+  Known inputs: shell occupancies (periodic table) + measured series ladder (Rydberg).
+  Tested hypothesis: collective ring-spin states reproduce the observed lines.
+</div>
+
+<div class="grid">
+
+  <!-- LEFT: controls -->
+  <div class="panel">
+    <h2>Atom &amp; model</h2>
+
+    <label class="small">Element / ion</label>
+    <select id="atomSelect"></select>
+
+    <label class="small">Spectral series</label>
+    <select id="seriesSelect">
+      <option value="lyman">Lyman (→ n=1)</option>
+      <option value="balmer">Balmer (→ n=2)</option>
+      <option value="paschen">Paschen (→ n=3)</option>
+    </select>
+
+    <label class="small">Model: how lines are produced</label>
+    <select id="modelSelect">
+      <option value="standard">A: Reference ladder (measured Rydberg levels)</option>
+      <option value="spinfit">B: Collective ring-spin fit (SRC hypothesis)</option>
+      <option value="independent">C: Independent emitters (null control)</option>
+    </select>
+
+    <label class="small">Rydberg Z_eff scale (tests core/ring coupling)</label>
+    <input type="range" id="zeff" min="100" max="200" value="100">
+    <div class="stat" id="zeffStat">Z_eff = 1.00</div>
+
+    <label class="small">Max upper ring n</label>
+    <input type="range" id="nmax" min="3" max="12" value="6">
+    <div class="stat" id="nmaxStat">n = 6</div>
+
+    <div class="row">
+      <button id="btnSimulate">Simulate</button>
+      <button id="btnFit">Fit sync</button>
+    </div>
+
+    <div class="stat" id="fitStat">
+      Run <b>Fit sync</b> to fit collective ring rates to the reference lines.
+    </div>
+  </div>
+
+  <!-- RIGHT: displays -->
+  <div>
+    <div class="panel atomCanvasBox">
+      <h2>Ring configuration (known occupancies)</h2>
+      <canvas id="atomCanvas" width="520" height="300"></canvas>
+      <div class="stat" id="configStat"></div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Spectrum: predicted vs reference</h2>
+      <canvas id="spectrumCanvas" width="820" height="190"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--accent)"></span>model prediction</span>
+        <span><span class="dot" style="background:var(--amber)"></span>reference line (measured)</span>
+        <span><span class="dot" style="background:var(--red)"></span>reference line not predicted</span>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Transition table</h2>
+      <div style="max-height:260px; overflow-y:auto">
+        <table id="transTable">
+          <thead>
+            <tr><th>Transition</th><th>Predicted nm</th><th>Reference nm</th><th>Δ nm</th><th>Status</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------
+   KNOWN INPUTS (not invented):
+   - Shell occupancies from the periodic table
+   - Hydrogen-like level ladder: E_n = -13.6 * Zeff^2 / n^2  (eV)
+     For H, Zeff = 1 reproduces the measured Lyman/Balmer/Paschen
+     series exactly. This is the measured reference structure.
+------------------------------------------------------------------- */
+
+const ATOMS = {
+  H:  { name: "Hydrogen",  Z: 1, shells: [1] },
+  He: { name: "Helium",    Z: 2, shells: [2] },
+  Li: { name: "Lithium",   Z: 3, shells: [2, 1] },
+  Be: { name: "Beryllium", Z: 4, shells: [2, 2] },
+  C:  { name: "Carbon",    Z: 6, shells: [2, 4] },
+  N:  { name: "Nitrogen",  Z: 7, shells: [2, 5] },
+  O:  { name: "Oxygen",    Z: 8, shells: [2, 6] },
+  Na: { name: "Sodium",    Z: 11, shells: [2, 8, 1] },
+  K:  { name: "Potassium", Z: 19, shells: [2, 8, 8, 1] }
+};
+
+const SERIES_LOWER = { lyman: 1, balmer: 2, paschen: 3 };
+const RYDBERG_EV = 13.605693; // measured H ionization energy
+
+const state = {
+  atom: "H",
+  series: "lyman",
+  model: "standard",
+  zeff: 1.0,
+  nmax: 6,
+  fitRates: null   // fitted collective ring rates (SRC hypothesis)
+};
+
+/* Reference level ladder (eV, relative to continuum) */
+function levelEnergy(n, zeff) {
+  return -RYDBERG_EV * zeff * zeff / (n * n);
+}
+
+function lineNm(dE_eV) {
+  if (dE_eV <= 0) return null;
+  return 1239.842 / dE_eV; // nm
+}
+
+/* Model A: reference ladder */
+function predictStandard(zeff, nLow, nMax) {
+  const lines = [];
+  for (let nUp = nLow + 1; nUp <= nMax; nUp++) {
+    const dE = levelEnergy(nUp, zeff) - levelEnergy(nLow, zeff);
+    const nm = lineNm(-dE);
+    if (nm && nm > 10 && nm < 2000) lines.push({ nUp, nLow, nm, src: "ladder" });
+  }
+  return lines;
+}
+
+/* Model C: null control — independent emitters, no shared ladder.
+   Each transition gets a randomized uncorrelated rate. */
+function predictIndependent(nLow, nMax) {
+  const lines = [];
+  let seed = 1234567;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  for (let nUp = nLow + 1; nUp <= nMax; nUp++) {
+    // arbitrary spin rates, no shared structure
+    const f1 = 1.0 + rnd() * 4.0, f2 = 1.0 + rnd() * 4.0;
+    const nm = lineNm(Math.abs(f2 - f1));
+    if (nm && nm > 10 && nm < 2000) lines.push({ nUp, nLow, nm, src: "null" });
+  }
+  return lines;
+}
+
+/* Model B: collective ring-spin fit.
+   Ring states r = 1..nmax each get one collective spin rate f_r.
+   Predicted line for ring transition r -> s: |f_s - f_r| mapped to energy.
+   "Fit sync" optimizes f_r so predicted frequencies match reference lines. */
+function predictSpinFit(rates, nLow, nMax) {
+  const lines = [];
+  for (let nUp = nLow + 1; nUp <= nMax; nUp++) {
+    const dE = Math.abs(rates[nUp - 1] - rates[nLow - 1]);
+    const nm = lineNm(dE);
+    if (nm && nm > 10 && nm < 2000) lines.push({ nUp, nLow, nm, src: "spinfit" });
+  }
+  return lines;
+}
+
+/* Simple least-squares fit of ring rates to reference line frequencies */
+function fitSync(zeff, nLow, nMax) {
+  const ref = predictStandard(zeff, nLow, nMax);
+  const N = nMax;
+  // initialize rates from reference ladder: f_n = E_n / h  (in eV units)
+  let rates = [];
+  for (let n = 1; n <= N; n++) rates.push(levelEnergy(n, zeff));
+
+  // gradient descent on sum (f_up - f_low - dE_ref)^2
+  const lr = 0.01;
+  for (let iter = 0; iter < 20000; iter++) {
+    const grad = new Array(N).fill(0);
+    for (const L of ref) {
+      const iU = L.nUp - 1, iL = L.nLow - 1;
+      const dEref = levelEnergy(L.nUp, zeff) - levelEnergy(L.nLow, zeff);
+      const err = (rates[iU] - rates[iL]) - dEref;
+      grad[iU] += 2 * err; grad[iL] -= 2 * err;
+    }
+    for (let i = 0; i < N; i++) rates[i] -= lr * grad[i];
+  }
+  return { rates, refLines: ref };
+}
+
+/* ---------- rendering ---------- */
+
+function drawAtom() {
+  const c = document.getElementById("atomCanvas");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  const cx = c.width / 2, cy = c.height / 2;
+  const a = ATOMS[state.atom];
+
+  // core
+  ctx.beginPath();
+  ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+  ctx.fillStyle = "#f6ad55";
+  ctx.fill();
+  ctx.fillStyle = "#0c0f14";
+  ctx.font = "bold 11px sans-serif";
+  ctx.fillText("Z=" + a.Z, cx - 12, cy + 4);
+
+  // rings with known occupancies
+  a.shells.forEach((occ, i) => {
+    const r = 45 + i * 42;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#2c3850";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // collective spin indicator (arc arrow)
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -0.4, 0.9);
+    ctx.strokeStyle = "#4fd1c5";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // occupants
+    for (let k = 0; k < occ; k++) {
+      const ang = (k / occ) * Math.PI * 2 - Math.PI / 2 + i * 0.3;
+      const ex = cx + r * Math.cos(ang), ey = cy + r * Math.sin(ang);
+      ctx.beginPath();
+      ctx.arc(ex, ey, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#63b3ed";
+      ctx.fill();
+    }
+    ctx.fillStyle = "#7d8aa0";
+    ctx.font = "11px sans-serif";
+    ctx.fillText("ring " + (i + 1) + ": " + occ + "  (sync group)", cx + r - 60, cy - r - 6);
+  });
+}
+
+function currentLines() {
+  const nLow = SERIES_LOWER[state.series];
+  if (state.model === "standard")
+    return predictStandard(state.zeff, nLow, state.nmax);
+  if (state.model === "independent")
+    return predictIndependent(nLow, state.nmax);
+  if (state.model === "spinfit") {
+    if (!state.fitRates) return [];
+    return predictSpinFit(state.fitRates, nLow, state.nmax);
+  }
+  return [];
+}
+
+function drawSpectrum() {
+  const c = document.getElementById("spectrumCanvas");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+
+  const nLow = SERIES_LOWER[state.series];
+  const ref = predictStandard(state.zeff, nLow, 12)
+    .filter(L => L.nm >= 100 && L.nm <= 1000);
+  const pred = currentLines().filter(L => L.nm >= 100 && L.nm <= 1000);
+
+  const nmMin = 80, nmMax = 1050;
+  const x = nm => 30 + (nm - nmMin) / (nmMax - nmMin) * (c.width - 60);
+
+  // axis
+  ctx.strokeStyle = "#2c3850";
+  ctx.beginPath(); ctx.moveTo(30, c.height - 28); ctx.lineTo(c.width - 30, c.height - 28); ctx.stroke();
+  ctx.fillStyle = "#7d8aa0"; ctx.font = "11px sans-serif";
+  for (let nm = 100; nm <= 1000; nm += 100) {
+    ctx.fillText(nm, x(nm) - 10, c.height - 12);
+    ctx.beginPath(); ctx.moveTo(x(nm), c.height - 28); ctx.lineTo(x(nm), c.height - 24); ctx.stroke();
+  }
+
+  // wavelength → approximate color
+  function waveColor(nm) {
+    if (nm < 380) return "#9f7aea";
+    const t = Math.min(1, Math.max(0, (nm - 380) / (700 - 380)));
+    const r = Math.round(255 * Math.min(1, Math.max(0, 1.5 - t * 3)));
+    const g = Math.round(255 * Math.min(1, Math.max(0, 1 - Math.abs(t - 0.5) * 2.4)));
+    const b = Math.round(255 * Math.min(1, Math.max(0, t * 3 - 1.5)));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // reference lines (amber ticks)
+  ref.forEach(L => {
+    const px = x(L.nm);
+    ctx.strokeStyle = "#f6ad55"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(px, 20); ctx.lineTo(px, c.height - 32); ctx.stroke();
+  });
+
+  // predicted lines (colored markers)
+  const matched = new Set();
+  pred.forEach(L => {
+    const px = x(L.nm);
+    let isRef = false;
+    ref.forEach(R => { if (Math.abs(R.nm - L.nm) < 2.5) { isRef = true; matched.add(R.nm.toFixed(1)); } });
+    ctx.beginPath();
+    ctx.arc(px, 26, 6, 0, Math.PI * 2);
+    ctx.fillStyle = waveColor(L.nm);
+    ctx.fill();
+    ctx.strokeStyle = isRef ? "#4fd1c5" : "#7d8aa0";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  // unmatched reference lines → red tick at top
+  ref.forEach(L => {
+    if (!matched.has(L.nm.toFixed(1))) {
+      ctx.strokeStyle = "#fc8181"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x(L.nm), 8); ctx.lineTo(x(L.nm), 16); ctx.stroke();
+    }
+  });
+
+  ctx.fillStyle = "#7d8aa0";
+  ctx.fillText("wavelength (nm)", c.width - 140, c.height - 12);
+}
+
+function fillTable() {
+  const tbody = document.querySelector("#transTable tbody");
+  tbody.innerHTML = "";
+  const nLow = SERIES_LOWER[state.series];
+  const ref = predictStandard(state.zeff, nLow, state.nmax);
+  const pred = currentLines();
+  const zeff = state.zeff;
+
+  ref.forEach(R => {
+    const match = pred.find(P => Math.abs(P.nm - R.nm) < 2.5);
+    const tr = document.createElement("tr");
+    const dE = (levelEnergy(R.nUp, zeff) - levelEnergy(R.nLow, zeff)).toFixed(3);
+    tr.innerHTML =
+      `<td>ring ${R.nUp} → ring ${R.nLow} &nbsp;(${dE} eV)</td>` +
+      `<td>${match ? match.nm.toFixed(2) : "—"}</td>` +
+      `<td>${R.nm.toFixed(2)}</td>` +
+      `<td>${match ? Math.abs(match.nm - R.nm).toFixed(2) : "—"}</td>` +
+      `<td class="${match ? "ok" : "miss"}">${match ? "predicted" : "NOT predicted"}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // extra predictions with no reference line
+  pred.forEach(P => {
+    const hit = ref.find(R => Math.abs(P.nm - R.nm) < 2.5);
+    if (!hit) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        `<td>ring ${P.nUp} → ring ${P.nLow}</td>` +
+        `<td>${P.nm.toFixed(2)}</td><td>—</td><td>—</td>` +
+        `<td class="miss">spurious</td>`;
+      tbody.appendChild(tr);
+    }
+  });
+}
+
+function updateStats() {
+  const a = ATOMS[state.atom];
+  document.getElementById("configStat").innerHTML =
+    `<b>${a.name}</b> (Z=${a.Z}) — known shell occupancy: <b>${a.shells.join("–")}</b>. ` +
+    `Each ring is treated as one synchronized collective group ` +
+    `(src hypothesis), with occupants sharing the ring spin rate.`;
+  document.getElementById("zeffStat").textContent = "Z_eff = " + state.zeff.toFixed(2);
+  document.getElementById("nmaxStat").textContent = "n = " + state.nmax;
+  const fitEl = document.getElementById("fitStat");
+  if (state.fitRates) {
+    fitEl.innerHTML = "Fitted collective ring rates (eV): <b>" +
+      state.fitRates.map(f => f.toFixed(2)).join(", ") + "</b>";
+  }
+}
+
+function simulate() {
+  drawAtom();
+  drawSpectrum();
+  fillTable();
+  updateStats();
+}
+
+/* ---------- fit ---------- */
+document.getElementById("btnFit").addEventListener("click", () => {
+  const nLow = SERIES_LOWER[state.series];
+  const { rates } = fitSync(state.zeff, nLow, state.nmax);
+  state.fitRates = rates;
+  state.model = "spinfit";
+  document.getElementById("modelSelect").value = "spinfit";
+  simulate();
+});
+
+/* ---------- controls ---------- */
+const atomSel = document.getElementById("atomSelect");
+Object.keys(ATOMS).forEach(k => {
+  const o = document.createElement("option");
+  o.value = k; o.textContent = `${ATOMS[k].name} (Z=${ATOMS[k].Z})`;
+  atomSel.appendChild(o);
+});
+atomSel.addEventListener("change", e => {
+  state.atom = e.target.value;
+  state.fitRates = null; // refit per atom
+  simulate();
+});
+document.getElementById("seriesSelect").addEventListener("change", e => {
+  state.series = e.target.value; state.fitRates = null; simulate();
+});
+document.getElementById("modelSelect").addEventListener("change", e => {
+  state.model = e.target.value; simulate();
+});
+document.getElementById("zeff").addEventListener("input", e => {
+  state.zeff = e.target.value / 100; simulate();
+});
+document.getElementById("nmax").addEventListener("input", e => {
+  state.nmax = +e.target.value; state.fitRates = null; simulate();
+});
+document.getElementById("btnSimulate").addEventListener("click", simulate);
+
+simulate();
+</script>
+</body>
+</html>

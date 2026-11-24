@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Al-like Bench — open-ring excess, one shell up</title>
+<script>
+window.onerror=function(m,s,l){var b=document.getElementById("err");
+ if(b){b.style.display="block";b.textContent="Error: "+m+" (line "+l+") — report this line number";}};
+</script>
+<style>
+:root{--bg:#0c0f14;--panel:#141922;--p2:#1a2130;--ink:#d8e0ec;--dim:#7d8aa0;--acc:#4fd1c5;--amb:#f6ad55;--blue:#63b3ed;--red:#fc8181}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding:14px}
+#err{display:none;background:#5c1010;color:#ffb3b3;border:1px solid var(--red);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:var(--acc);font-size:12px;margin-bottom:10px}
+h1{font-size:19px;margin-bottom:3px}
+h2{font-size:12px;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px;line-height:1.55}
+.panel{background:var(--panel);border:1px solid #232c3d;border-radius:9px;padding:12px;margin-bottom:12px}
+button{background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer;margin:4px 6px 0 0}
+button:hover{border-color:var(--acc)}
+.stat{background:var(--p2);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--dim);margin:5px 0;line-height:1.55}
+.stat b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{padding:4px 5px;color:var(--dim);border-bottom:1px solid #2c3850;text-align:left}
+td{padding:4px 5px;border-bottom:1px solid #1e2635}
+.mono{font-family:Consolas,monospace}
+.ok{color:var(--acc)}.bad{color:var(--red)}.mid{color:var(--amb)}.dim{color:var(--dim)}
+canvas{display:block;width:100%;height:auto;background:#10151d;border-radius:6px;margin:4px 0}
+.pred{border-left:3px solid var(--amb);padding-left:8px}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="selftest">checking...</div>
+<h1>Al-like Bench — the open-ring excess, one shell up</h1>
+<p class="sub">
+Six members — Al, Si&#8314;, P&sup2;&#8314;, S&sup3;&#8314;, Cl&#8308;&#8314;, Ar&#8310;&#8314; — each with one 3p
+electron over the closed Ne core plus a 3s pair: the B-like shape at n=3, Z=13&rarr;18.
+Two candidate Z-forms compete: the B-like <b>1/(Z&minus;1)&sup2;</b> and the closed-ring
+<b>1/(Z&minus;a)</b>. The data picks.
+</p>
+
+<div class="panel">
+<h2>Pre-registered (before fitting)</h2>
+<div class="stat pred" id="pred"></div>
+</div>
+
+<div class="panel">
+<button id="btnFit">Fit both forms</button>
+<div style="overflow:auto"><table>
+<thead><tr><th>ion</th><th>Z</th><th>ionization eV</th><th>Zs req</th><th>&sigma; req</th>
+<th>form A model</th><th>gap A</th><th>form B model</th><th>gap B</th></tr></thead>
+<tbody id="tbData"></tbody></table></div>
+</div>
+
+<div class="panel">
+<h2>Form contest</h2>
+<div class="stat" id="contest"></div>
+<canvas id="cv" width="880" height="280"></canvas>
+</div>
+
+<div class="panel">
+<h2>Excess vs the additive floor</h2>
+<div class="stat" id="excess"></div>
+</div>
+
+<div class="panel">
+<h2>Recorded for the model</h2>
+<div class="stat" id="verdict"></div>
+</div>
+
+<script>
+"use strict";
+var HEV=13.605693122994;
+/* constants banked from earlier benches */
+var INNER_X=0.7914, X2S=0.5342, NA_INNER_TOTAL=7.8203;
+var BLIKE={s0:3.1260, c:4.980, floor:2.651, perPartner:0.237};
+
+/* Al-like data — S3+, Cl4+, Ar5+ are the least certain; NIST-verify before reading small gaps */
+var DATA=[
+ {ion:"Al",  Z:13, I:5.9858},
+ {ion:"Si+", Z:14, I:16.3486},
+ {ion:"P2+", Z:15, I:30.2026},
+ {ion:"S3+", Z:16, I:47.3020, flag:true},
+ {ion:"Cl4+",Z:17, I:67.8000, flag:true},
+ {ion:"Ar5+",Z:18, I:91.0070, flag:true}
+];
+var NVAL=3;
+var REQ=DATA.map(function(d){
+ var Zs=Math.sqrt(d.I*NVAL*NVAL/HEV);
+ return {ion:d.ion,Z:d.Z,I:d.I,flag:d.flag,Zs:Zs,sig:d.Z-Zs};
+});
+
+/* additive floor hypothesis: 10 inner (Na-like) + 2 x (3s partner screens like 2s partner) */
+var FLOOR_HYP=NA_INNER_TOTAL+2*X2S;
+
+/* self-test: prove the inversion function is shared by re-deriving Na's verified value */
+(function(){
+ var na=5.1391, zs=Math.sqrt(na*9/HEV);
+ var ok=Math.abs(zs-1.8438)<0.0005;
+ var al=REQ[0];
+ document.getElementById("selftest").textContent=
+  "APP IS RUNNING — self-test: inversion function reproduces Na Zs = "+zs.toFixed(4)+
+  " (expect 1.8438, the twice-verified anchor); Al sigma = "+al.sig.toFixed(4)+
+  " (rough hand value 11.010). "+REQ.length+" members loaded."+
+  (ok?" — inversion check passes.":" — INVERSION CHECK FAILED.");
+})();
+
+document.getElementById("pred").innerHTML=
+ "<b>Floor hypothesis:</b> 10 inner (7.8203) + 2&times;"+X2S.toFixed(4)+
+ " (3s partners assumed to screen like 2s partners) = <b>"+FLOOR_HYP.toFixed(3)+"</b>.<br>"+
+ "<b>Excess hypothesis:</b> if the excess per s-partner matches B-like's "+
+ BLIKE.perPartner.toFixed(3)+", the asymptote should land near "+(FLOOR_HYP+2*BLIKE.perPartner).toFixed(3)+
+ " (rough hand estimate: ~9.44).<br>"+
+ "<b>Form contest:</b> B-like fit 1/(Z&minus;1)&sup2; at the data floor (RMS 0.0015). Rough hand "+
+ "regression on Al-like leaves ~&plusmn;0.04 — either heavy-member data error (S/Cl/Ar, verify first) "+
+ "or the open-ring Z-dependence changes with n.<br>"+
+ "<span class='dim'>All values below are computed by the app, not asserted.</span>";
+
+/* ---------- shared helper: least-squares fit of sigma = s0 + c/(Z-a) ----------
+   Defined at function scope so every loop below can call it (this was the line-97 bug). */
+function evalShifted(list,aa){
+ var n=list.length,su=0,sv=0,suu=0,suv=0,j;
+ for(j=0;j<n;j++){
+  var u=1/(list[j].Z-aa),v=list[j].sig;
+  su+=u;sv+=v;suu+=u*u;suv+=u*v;
+ }
+ var d=n*suu-su*su;
+ if(Math.abs(d)<1e-14)return {ss:1e12,s0:0,c:0,a:aa};
+ var cc=(n*suv-su*sv)/d,s02=(sv-cc*su)/n,ss=0;
+ for(j=0;j<n;j++){var pr=s02+cc/(list[j].Z-aa);ss+=(pr-list[j].sig)*(pr-list[j].sig);}
+ return {ss:ss,s0:s02,c:cc,a:aa};
+}
+
+/* form A: sigma0 + c/(Z-1)^2 — linear regression */
+function fitA(list){
+ var n=list.length,sx=0,sy=0,sxx=0,sxy=0,i;
+ for(i=0;i<n;i++){
+  var u=list[i].Z-1,x=1/(u*u),v=list[i].sig;
+  sx+=x;sy+=v;sxx+=x*x;sxy+=x*v;
+ }
+ var den=n*sxx-sx*sx;
+ var c=(n*sxy-sx*sy)/den,s0=(sy-c*sx)/n,ss=0;
+ for(i=0;i<n;i++){
+  var u2=list[i].Z-1;
+  var pr=s0+c/(u2*u2);ss+=(pr-list[i].sig)*(pr-list[i].sig);
+ }
+ return {s0:s0,c:c,rms:Math.sqrt(ss/n),form:"&sigma;&#8320; + c/(Z&minus;1)&sup2;"};
+}
+/* form B: sigma0 + c/(Z-a) — scan a, then golden-section refine */
+function fitB(list){
+ var best=null,step=0.02,a,i;
+ for(a=0.1;a<12.5;a+=step){
+  var f=evalShifted(list,a);
+  if(!best||f.ss<best.ss)best=f;
+ }
+ var lo=best.a-step,hi=best.a+step,it;
+ for(it=0;it<40;it++){
+  var m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;
+  var f1=evalShifted(list,m1),f2=evalShifted(list,m2);
+  if(f1.ss<f2.ss){hi=m2;best=f1;}else{lo=m1;best=f2;}
+ }
+ var ff=evalShifted(list,(lo+hi)/2);
+ if(ff.ss<best.ss)best=ff;
+ return {s0:best.s0,c:best.c,a:best.a,rms:Math.sqrt(best.ss/list.length),
+         form:"&sigma;&#8320; + c/(Z&minus;a)"};
+}
+
+var FA=null,FB=null;
+function fmt(v,d){return (typeof v==="number"&&isFinite(v))?v.toFixed(d):"—";}
+
+function renderAll(){
+ var h="";
+ REQ.forEach(function(r){
+  var mA=FA?FA.s0+FA.c/((r.Z-1)*(r.Z-1)):null;
+  var mB=FB?FB.s0+FB.c/(r.Z-FB.a):null;
+  var gA=mA!==null?mA-r.sig:null,gB=mB!==null?mB-r.sig:null;
+  var clsA=gA===null?"dim":(Math.abs(gA)<0.005?"ok":(Math.abs(gA)<0.02?"mid":"bad"));
+  var clsB=gB===null?"dim":(Math.abs(gB)<0.005?"ok":(Math.abs(gB)<0.02?"mid":"bad"));
+  h+="<tr><td><b>"+r.ion+"</b>"+(r.flag?" <span class='mid'>&#9888;</span>":"")+"</td><td>"+r.Z+
+   "</td><td class='mono'>"+r.I.toFixed(4)+"</td><td class='mono'>"+r.Zs.toFixed(4)+
+   "</td><td class='mono'>"+r.sig.toFixed(4)+
+   "</td><td class='mono'>"+fmt(mA,4)+"</td><td class='mono "+clsA+"'>"+fmt(gA,4)+
+   "</td><td class='mono'>"+fmt(mB,4)+"</td><td class='mono "+clsB+"'>"+fmt(gB,4)+"</td></tr>";
+ });
+ document.getElementById("tbData").innerHTML=h;
+
+ var cv=document.getElementById("cv"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height,L=56,R=W-24,T=30,B2=H-46;
+ g.clearRect(0,0,W,H);
+ var ymin=10.0,ymax=11.4;
+ REQ.forEach(function(r){ymin=Math.min(ymin,r.sig-0.05);ymax=Math.max(ymax,r.sig+0.05);});
+ function X(v){return L+(v-12.5)/(18.5-12.5)*(R-L);}
+ function Y(v){return B2-(v-ymin)/(ymax-ymin)*(B2-T);}
+ g.strokeStyle="#2c3850";g.lineWidth=1;
+ g.beginPath();g.moveTo(L,T-10);g.lineTo(L,B2);g.lineTo(R,B2);g.stroke();
+ g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+ var t;
+ for(t=0;t<=4;t++){var vy=ymin+(ymax-ymin)*t/4;
+  g.fillText(vy.toFixed(1),8,Y(vy)+4);
+  g.strokeStyle="rgba(44,56,80,0.4)";g.beginPath();g.moveTo(L,Y(vy));g.lineTo(R,Y(vy));g.stroke();}
+ for(t=13;t<=18;t++)g.fillText(String(t),X(t)-5,H-20);
+ g.fillText("core charge Z",W-120,H-4);
+ g.fillText("screening sigma, Al-like",8,16);
+ if(FLOOR_HYP&&FLOOR_HYP>ymin&&FLOOR_HYP<ymax){
+  g.strokeStyle="#fc8181";g.setLineDash([6,4]);g.lineWidth=2;
+  g.beginPath();g.moveTo(L,Y(FLOOR_HYP));g.lineTo(R,Y(FLOOR_HYP));g.stroke();g.setLineDash([]);
+  g.fillStyle="#fc8181";g.fillText("additive floor hypothesis "+FLOOR_HYP.toFixed(2),R-300,Y(FLOOR_HYP)-8);
+ }
+ REQ.forEach(function(r){
+  g.beginPath();g.arc(X(r.Z),Y(r.sig),6,0,6.2832);
+  g.fillStyle="#f6ad55";g.fill();
+  g.strokeStyle="#10151d";g.lineWidth=1.5;g.stroke();
+  g.fillStyle="#7d8aa0";g.fillText(r.ion,X(r.Z)-16,Y(r.sig)-12);
+ });
+ if(FA){g.strokeStyle="#f6ad55";g.lineWidth=2;g.setLineDash([2,3]);g.beginPath();
+  var first=true,z;
+  for(z=12.8;z<=18.3;z+=0.05){var py=Y(FA.s0+FA.c/((z-1)*(z-1)));
+   if(first){g.moveTo(X(z),py);first=false;}else g.lineTo(X(z),py);}
+  g.stroke();g.setLineDash([]);
+  g.fillStyle="#f6ad55";g.fillText("form A: 1/(Z-1)^2",R-190,40);}
+ if(FB){g.strokeStyle="#4fd1c5";g.lineWidth=2.4;g.beginPath();
+  var first2=true,z2;
+  for(z2=12.8;z2<=18.3;z2+=0.05){var py2=Y(FB.s0+FB.c/(z2-FB.a));
+   if(first2){g.moveTo(X(z2),py2);first2=false;}else g.lineTo(X(z2),py2);}
+  g.stroke();
+  g.strokeStyle="#63b3ed";g.setLineDash([2,4]);g.lineWidth=1.5;
+  g.beginPath();g.moveTo(L,Y(FB.s0));g.lineTo(R,Y(FB.s0));g.stroke();g.setLineDash([]);
+  g.fillStyle="#4fd1c5";g.fillText("form B: 1/(Z-a)",R-190,56);
+  g.fillStyle="#63b3ed";g.fillText("asymptote "+FB.s0.toFixed(3),R-190,70);}
+}
+
+document.getElementById("btnFit").addEventListener("click",function(){
+ FA=fitA(REQ);FB=fitB(REQ);
+ renderAll();
+ var winner=FA.rms<FB.rms?"A (1/(Z-1)^2)":"B (1/(Z-a))";
+ document.getElementById("contest").innerHTML=
+  "Form A: &sigma;&#8320;="+FA.s0.toFixed(4)+", c="+FA.c.toFixed(3)+", RMS <b>"+FA.rms.toFixed(5)+"</b><br>"+
+  "Form B: &sigma;&#8320;="+FB.s0.toFixed(4)+", c="+FB.c.toFixed(4)+", a="+FB.a.toFixed(4)+
+  ", RMS <b>"+FB.rms.toFixed(5)+"</b><br>"+
+  "<b>Winner: "+winner+"</b>"+(Math.abs(FA.rms-FB.rms)<0.002?" — effectively tied; the data cannot yet distinguish.":"")+
+  (FA.rms>0.01&&FB.rms>0.01?"<br><b class='mid'>Neither form reaches the data floor. Before reading physics into the asymptote, NIST-verify S&sup3;&#8314;, Cl&#8308;&#8314;, Ar&#8310;&#8314; (flagged &#9888;) — their values are the roughest inputs in this bench.</b>":"");
+ var asymp=FA.rms<FB.rms?FA.s0:FB.s0;
+ var exc=asymp-FLOOR_HYP;
+ var per=exc/2;
+ var perGap=per-BLIKE.perPartner;
+ document.getElementById("excess").innerHTML=
+  "Asymptote (better form): <b>"+asymp.toFixed(4)+"</b>.<br>"+
+  "Floor hypothesis: <b>"+FLOOR_HYP.toFixed(4)+"</b>.<br>"+
+  "Open-ring excess: <b>"+exc.toFixed(4)+"</b> total, <b>"+per.toFixed(4)+
+  "</b> per 3s partner.<br>"+
+  "B-like per-partner was "+BLIKE.perPartner.toFixed(3)+
+  " — gap <b class='"+(Math.abs(perGap)<0.05?"ok":"mid")+"'>"+(perGap>=0?"+":"")+perGap.toFixed(4)+"</b>."+
+  (Math.abs(perGap)<0.05
+   ?" <b class='ok'>The excess is a per-structure constant — same signature one shell up. That is the synchronization signature in the screening channel.</b>"
+   :" <b class='mid'>The excess changed with shell. Record the new value; the excess is n-dependent, not universal.</b>");
+ document.getElementById("verdict").innerHTML=
+  "<b>Recorded:</b><br>"+
+  "&bull; banked constants unchanged: non-penetrating 0.791, penetrating s-partner 0.534<br>"+
+  "&bull; Al-like open-ring excess per s-partner: <b>"+fmt(per,4)+"</b> (B-like: 0.237)<br>"+
+  "&bull; winning Z-form for open rings at n=3: <b>"+(FA.rms<FB.rms?"1/(Z-1)^2":"1/(Z-a)")+
+  "</b> (B-like at n=2: 1/(Z-1)^2, c=4.98)<br>"+
+  "&bull; if the floor hypothesis (3s screens like 2s) is wrong by &delta;, the excess carries that &delta; — "+
+  "an independent 3s-partner measurement would break the tie<br>"+
+  "<span class='dim'>Verify S&sup3;&#8314;, Cl&#8308;&#8314;, Ar&#8310;&#8314; against NIST ASD before treating small gaps as physical.</span>";
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ring-State Spectrum Simulator v2</title>
+<script>
+window.onerror=function(m,s,l){
+  var b=document.getElementById("errbanner");
+  if(b){b.style.display="block";b.textContent="JS ERROR: "+m+"  (line "+l+")";}
+  return false;
+};
+</script>
+<style>
+body{background:#0c0f14;color:#d8e0ec;font-family:Segoe UI,system-ui,sans-serif;padding:14px;margin:0}
+#errbanner{display:none;background:#5c1010;color:#ffb3b3;border:1px solid #fc8181;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:#4fd1c5;font-size:12px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:12px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:#141922;border:1px solid #232c3d;border-radius:10px;padding:12px;margin-bottom:12px}
+.panel h2{font-size:12px;color:#4fd1c5;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+select,button{background:#1a2130;color:#d8e0ec;border:1px solid #2c3850;border-radius:6px;padding:6px 8px;font-size:13px;width:100%;margin:4px 0 8px}
+button{cursor:pointer}button:hover{border-color:#4fd1c5}
+.row{display:flex;gap:8px}.row>*{flex:1}
+label.small{font-size:11px;color:#7d8aa0;display:block}
+.stat{background:#1a2130;border-radius:6px;padding:7px 9px;font-size:12px;color:#7d8aa0;margin:6px 0}
+.stat b{color:#d8e0ec}
+.score{display:flex;gap:8px;margin-bottom:8px}
+.score>div{flex:1;background:#1a2130;border-radius:8px;padding:8px;text-align:center}
+.score .num{font-size:22px;font-weight:700}
+.score .lbl{font-size:10px;color:#7d8aa0}
+.cM .num{color:#4fd1c5}.cX .num{color:#fc8181}.cS .num{color:#63b3ed}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:#7d8aa0;border-bottom:1px solid #2c3850;padding:4px 6px}
+td{padding:4px 6px;border-bottom:1px solid #1e2635}
+.ok{color:#4fd1c5}.miss{color:#fc8181}.spur{color:#63b3ed}
+input[type=range]{width:100%}
+</style>
+</head>
+<body>
+<div id="errbanner"></div>
+<div id="selftest">loading...</div>
+<h1 style="font-size:18px;margin:0 0 10px">Ring-State Spectrum Simulator v2</h1>
+<div class="grid">
+<div>
+  <div class="panel">
+    <h2>Controls</h2>
+    <label class="small">Element (known shell occupancy)</label>
+    <select id="selAtom"></select>
+    <label class="small">Series (hold-out: switch series WITHOUT refitting)</label>
+    <select id="selSeries">
+      <option value="lyman">Lyman (to n=1)</option>
+      <option value="balmer">Balmer (to n=2)</option>
+      <option value="paschen">Paschen (to n=3)</option>
+    </select>
+    <label class="small">Model</label>
+    <select id="selModel">
+      <option value="standard">A: measured reference ladder</option>
+      <option value="spinfit">B: collective ring-spin fit (SRC)</option>
+      <option value="independent">C: independent emitters (null)</option>
+    </select>
+    <label class="small">Z_eff (core/ring coupling)</label>
+    <input type="range" id="rngZ" min="100" max="200" value="100">
+    <div class="stat" id="stZ">Z_eff = 1.00</div>
+    <label class="small">Max upper ring n</label>
+    <input type="range" id="rngN" min="3" max="12" value="6">
+    <div class="stat" id="stN">n = 6</div>
+    <div class="row">
+      <button id="btnSim">Simulate</button>
+      <button id="btnFit">Fit sync</button>
+    </div>
+    <div class="stat" id="stFit">Run Fit sync to fit one collective rate per ring to the reference lines.</div>
+  </div>
+</div>
+<div>
+  <div class="panel">
+    <h2>Scoreboard - what the model got</h2>
+    <div class="score">
+      <div class="cM"><div class="num" id="nM">0</div><div class="lbl">matched</div></div>
+      <div class="cX"><div class="num" id="nX">0</div><div class="lbl">missed (measured, not predicted)</div></div>
+      <div class="cS"><div class="num" id="nS">0</div><div class="lbl">spurious (predicted, not measured)</div></div>
+    </div>
+    <canvas id="cv" width="820" height="170"></canvas>
+  </div>
+  <div class="panel">
+    <h2>Transitions</h2>
+    <div style="max-height:260px;overflow:auto">
+    <table><thead><tr><th>Transition</th><th>Pred nm</th><th>Ref nm</th><th>Delta</th><th>Status</th></tr></thead>
+    <tbody id="tb"></tbody></table>
+    </div>
+    <div class="stat" id="stCfg"></div>
+  </div>
+</div>
+</div>
+<script>
+"use strict";
+var RYD=13.605693;
+var ATOMS={H:[1],He:[2],Li:[2,1],C:[2,4],N:[2,5],O:[2,6],Na:[2,8,1],K:[2,8,8,1]};
+var LOW={lyman:1,balmer:2,paschen:3};
+var st={atom:"H",series:"lyman",model:"standard",zeff:1,nmax:6,rates:null,fittedOn:""};
+
+function Ev(n,z){return -RYD*z*z/(n*n);}
+function nmOf(dE){return dE>0?1239.842/dE:null;}
+
+function refLines(z,nLow,nMax){
+  var o=[];
+  for(var nu=nLow+1;nu<=nMax;nu++){
+    var w=nmOf(-(Ev(nu,z)-Ev(nLow,z)));
+    if(w&&w>10&&w<2000)o.push({nUp:nu,nLow:nLow,nm:w});
+  }
+  return o;
+}
+function nullLines(nLow,nMax){
+  var o=[],s=987654321+nLow*7919;
+  function rnd(){s=(s*1103515245+12345)%2147483648;return s/2147483648;}
+  for(var nu=nLow+1;nu<=nMax;nu++){
+    var w=nmOf(Math.abs((1+rnd()*4)-(1+rnd()*4)));
+    if(w&&w>10&&w<2000)o.push({nUp:nu,nLow:nLow,nm:w});
+  }
+  return o;
+}
+function fitLines(r,nLow,nMax){
+  var o=[];
+  for(var nu=nLow+1;nu<=nMax;nu++){
+    var w=nmOf(Math.abs(r[nu-1]-r[nLow-1]));
+    if(w&&w>10&&w<2000)o.push({nUp:nu,nLow:nLow,nm:w});
+  }
+  return o;
+}
+function fitSync(z,nLow,nMax){
+  var ref=refLines(z,nLow,nMax),N=nMax,r=[],i,it,k;
+  for(i=0;i<N;i++)r.push(0.4+0.31*(i+1));
+  for(it=0;it<40000;it++){
+    var g=new Array(N);for(i=0;i<N;i++)g[i]=0;
+    for(k=0;k<ref.length;k++){
+      var iU=ref[k].nUp-1,iL=ref[k].nLow-1;
+      var dref=Ev(ref[k].nUp,z)-Ev(ref[k].nLow,z);
+      var e=(r[iU]-r[iL])-dref;
+      g[iU]+=2*e;g[iL]-=2*e;
+    }
+    var lr=0.05/(1+it/5000);
+    for(i=0;i<N;i++)r[i]-=lr*g[i];
+  }
+  return r;
+}
+function classify(){
+  var nLow=LOW[st.series];
+  var ref=refLines(st.zeff,nLow,12).filter(function(L){return L.nm>=100&&L.nm<=1000;});
+  var pred;
+  if(st.model==="standard")pred=ref.slice();
+  else if(st.model==="independent")pred=nullLines(nLow,st.nmax).filter(function(L){return L.nm>=100&&L.nm<=1000;});
+  else pred=st.rates?fitLines(st.rates,nLow,st.nmax).filter(function(L){return L.nm>=100&&L.nm<=1000;}):[];
+  var matched=[],spurious=[];
+  pred.forEach(function(P){
+    var hit=null;
+    for(var i=0;i<ref.length;i++){if(!ref[i]._u&&Math.abs(ref[i].nm-P.nm)<2.5){hit=ref[i];break;}}
+    if(hit){hit._u=true;P._r=hit;matched.push(P);}else spurious.push(P);
+  });
+  var missed=ref.filter(function(R){return !R._u;});
+  return {ref:ref,pred:pred,matched:matched,spurious:spurious,missed:missed};
+}
+function wc(w){
+  if(w<380)return "#9f7aea";
+  var t=Math.max(0,Math.min(1,(w-380)/320));
+  var r=Math.round(255*Math.max(0,Math.min(1,1.5-t*3)));
+  var g=Math.round(255*Math.max(0,Math.min(1,1-Math.abs(t-0.5)*2.4)));
+  var b=Math.round(255*Math.max(0,Math.min(1,t*3-1.5)));
+  return "rgb("+r+","+g+","+b+")";
+}
+function draw(res){
+  var c=document.getElementById("cv"),g=c.getContext("2d");
+  g.clearRect(0,0,c.width,c.height);
+  var x=function(w){return 30+(w-80)/(1050-80)*(c.width-60);};
+  g.strokeStyle="#2c3850";g.beginPath();g.moveTo(30,c.height-24);g.lineTo(c.width-30,c.height-24);g.stroke();
+  g.fillStyle="#7d8aa0";g.font="11px sans-serif";
+  for(var w=100;w<=1000;w+=100){
+    g.fillText(String(w),x(w)-10,c.height-8);
+    g.beginPath();g.moveTo(x(w),c.height-24);g.lineTo(x(w),c.height-20);g.stroke();
+  }
+  res.ref.forEach(function(L){
+    g.strokeStyle=L._u?"#f6ad55":"#fc8181";
+    g.lineWidth=L._u?2:3;
+    g.beginPath();g.moveTo(x(L.nm),16);g.lineTo(x(L.nm),c.height-28);g.stroke();
+  });
+  res.pred.forEach(function(P){
+    var m=res.matched.indexOf(P)>=0;
+    g.beginPath();g.arc(x(P.nm),22,6,0,6.2832);
+    g.fillStyle=wc(P.nm);g.fill();
+    g.strokeStyle=m?"#4fd1c5":"#63b3ed";g.lineWidth=2;g.stroke();
+  });
+}
+function table(res){
+  var tb=document.getElementById("tb");tb.innerHTML="";
+  function row(a,cls){var tr=document.createElement("tr");
+    tr.innerHTML="<td>"+a[0]+"</td><td>"+a[1]+"</td><td>"+a[2]+"</td><td>"+a[3]+"</td><td class=\""+cls+"\">"+a[4]+"</td>";
+    tb.appendChild(tr);}
+  res.matched.forEach(function(P){row(["ring "+P.nUp+" to ring "+P.nLow,P.nm.toFixed(2),P._r.nm.toFixed(2),Math.abs(P.nm-P._r.nm).toFixed(2),"matched"],"ok");});
+  res.missed.forEach(function(R){row(["ring "+R.nUp+" to ring "+R.nLow,"-",R.nm.toFixed(2),"-","MISSED"],"miss");});
+  res.spurious.forEach(function(P){row(["ring "+P.nUp+" to ring "+P.nLow,P.nm.toFixed(2),"-","-","spurious"],"spur");});
+  document.getElementById("nM").textContent=res.matched.length;
+  document.getElementById("nX").textContent=res.missed.length;
+  document.getElementById("nS").textContent=res.spurious.length;
+}
+function render(){
+  var res=classify();
+  draw(res);table(res);
+  document.getElementById("stZ").textContent="Z_eff = "+st.zeff.toFixed(2);
+  document.getElementById("stN").textContent="n = "+st.nmax;
+  var a=ATOMS[st.atom],Z=0;a.forEach(function(n){Z+=n;});
+  document.getElementById("stCfg").innerHTML="Element: <b>"+st.atom+"</b> Z="+Z+" shells "+a.join("-")+
+    " | model "+st.model+" | predicted "+res.pred.length+" / reference "+res.ref.length;
+  var f=document.getElementById("stFit");
+  if(st.rates){
+    f.innerHTML="Fitted ring rates (eV): <b>"+st.rates.map(function(v){return v.toFixed(2);}).join(", ")+
+      "</b><br>Fitted on <b>"+st.fittedOn+"</b>. Switch series WITHOUT refitting for the hold-out test.";
+  } else if(st.model==="spinfit"){
+    f.innerHTML="Model B selected but no fit yet - all reference lines count as MISSED. Press Fit sync.";
+  } else {
+    f.innerHTML="Model "+st.model+". Run Fit sync to fit collective ring rates to the reference lines of the current series.";
+  }
+}
+function $(id){return document.getElementById(id);}
+var sel=$("selAtom"),keys=Object.keys(ATOMS);
+keys.forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=k+" shells "+ATOMS[k].join("-");sel.appendChild(o);});
+sel.value="H";
+sel.onchange=function(){st.atom=sel.value;st.rates=null;st.fittedOn="";render();};
+$("selSeries").onchange=function(){st.series=this.value;render();};
+$("selModel").onchange=function(){st.model=this.value;render();};
+$("rngZ").oninput=function(){st.zeff=this.value/100;render();};
+$("rngN").oninput=function(){st.nmax=+this.value;render();};
+$("btnSim").onclick=render;
+$("btnFit").onclick=function(){
+  st.rates=fitSync(st.zeff,LOW[st.series],st.nmax);
+  var s=$("selSeries");st.fittedOn=s.options[s.selectedIndex].text;
+  st.model="spinfit";$("selModel").value="spinfit";render();
+};
+render();
+$("selftest").textContent="script OK - self-test: "+refLines(1,1,6).length+
+  " Lyman reference lines and "+refLines(1,2,6).length+" Balmer lines computed. Engine is running.";
+</script>
+</body>
+</html>

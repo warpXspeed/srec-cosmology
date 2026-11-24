@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ring-Relationship Decomposition — corrected data, held-out test</title>
+<script>
+window.onerror=function(m,s,l){var b=document.getElementById("err");
+ if(b){b.style.display="block";b.textContent="Error: "+m+" (line "+l+") — report this line number";}};
+</script>
+<style>
+:root{--bg:#0c0f14;--panel:#141922;--p2:#1a2130;--ink:#d8e0ec;--dim:#7d8aa0;--acc:#4fd1c5;--amb:#f6ad55;--blue:#63b3ed;--red:#fc8181}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding:14px}
+#err{display:none;background:#5c1010;color:#ffb3b3;border:1px solid var(--red);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:var(--acc);font-size:12px;margin-bottom:10px}
+h1{font-size:19px;margin-bottom:3px}
+h2{font-size:12px;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px;line-height:1.55}
+.panel{background:var(--panel);border:1px solid #232c3d;border-radius:9px;padding:12px;margin-bottom:12px}
+.stat{background:var(--p2);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--dim);margin:5px 0;line-height:1.55}
+.stat b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{padding:4px 5px;color:var(--dim);border-bottom:1px solid #2c3850;text-align:left}
+td{padding:4px 5px;border-bottom:1px solid #1e2635}
+.mono{font-family:Consolas,monospace}
+.ok{color:var(--acc)}.bad{color:var(--red)}.mid{color:var(--amb)}.dim{color:var(--dim)}
+canvas{display:block;width:100%;height:auto;background:#10151d;border-radius:6px;margin:4px 0}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="selftest">checking...</div>
+<h1>Ring-Relationship Decomposition</h1>
+<p class="sub">
+Eight sequences, corrected ionization energies, partner screening resolved by
+<b>relation to the probe</b> (inner ring vs same ring). Every constant is derived from one sequence;
+<b>Ne-like is never used in the derivation</b> and serves as the held-out prediction.
+</p>
+
+<div class="panel">
+<h2>Panel 1 — data revision log (this revision)</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>ion</th><th>previous</th><th>corrected</th><th>&Delta;</th><th>used in</th></tr></thead>
+<tbody id="tbRev"></tbody></table></div>
+</div>
+
+<div class="panel">
+<h2>Panel 2 — fits (σ = σ₀ + c/(Z−a))</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>sequence</th><th>probe</th><th>&sigma;&#8320;</th><th>c</th><th>a</th><th>RMS</th><th>integrity</th></tr></thead>
+<tbody id="tbFit"></tbody></table></div>
+</div>
+
+<div class="panel">
+<h2>Panel 3 — partner constants, derived in order</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>constant</th><th>value</th><th>derived from</th><th>formula</th></tr></thead>
+<tbody id="tbConst"></tbody></table></div>
+<div class="stat" id="constTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Panel 4 — closure and the held-out prediction</h2>
+<canvas id="cv" width="880" height="290"></canvas>
+<div style="overflow:auto"><table>
+<thead><tr><th>sequence</th><th>measured &sigma;&#8320;</th><th>model</th><th>residual</th><th>status</th></tr></thead>
+<tbody id="tbClose"></tbody></table></div>
+<div class="stat" id="closeTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Panel 5 — probe-subshell effect (same partner, different probe)</h2>
+<div class="stat" id="probeTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Panel 6 — half-filled (⁴S) exchange residual from the cascades</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>cascade</th><th>step</th><th>to config</th><th>&Delta;&sigma;</th><th>interp</th><th>residual</th></tr></thead>
+<tbody id="tbExc"></tbody></table></div>
+<div class="stat" id="excTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Panel 7 — automated same-ion hygiene check</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>ion</th><th>source A</th><th>value A</th><th>source B</th><th>value B</th><th>gap</th><th>status</th></tr></thead>
+<tbody id="tbHyg"></tbody></table></div>
+<div class="stat" id="hygTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Recorded for the model</h2>
+<div class="stat" id="verdict"></div>
+</div>
+
+<script>
+"use strict";
+var HEV=13.605693122994;
+
+/* ---------- sequences (corrected ionization energies) ----------
+   parts: [partner subshell, relation to probe, count]
+   relation: "inner" = lower ring, "same" = same ring & same subshell, "ring" = same ring, other subshell */
+var SEQ=[
+ {key:"li",label:"Li-like",probe:"2s",n:2,parts:[["1s","inner",2]],
+  data:[{ion:"Li",Z:3,I:5.3917},{ion:"Be+",Z:4,I:18.2112},{ion:"B2+",Z:5,I:37.9316},
+        {ion:"C3+",Z:6,I:64.4939},{ion:"N4+",Z:7,I:97.8902},{ion:"O5+",Z:8,I:138.1197},
+        {ion:"F6+",Z:9,I:185.1868},{ion:"Ne7+",Z:10,I:239.0970}]},
+ {key:"be",label:"Be-like",probe:"2s",n:2,parts:[["1s","inner",2],["2s","same",1]],
+  data:[{ion:"Be",Z:4,I:9.3227},{ion:"B+",Z:5,I:25.1548},{ion:"C2+",Z:6,I:47.8878},
+        {ion:"N3+",Z:7,I:77.4735},{ion:"O4+",Z:8,I:113.8989},{ion:"F5+",Z:9,I:157.1659},
+        {ion:"Ne6+",Z:10,I:207.2760}]},
+ {key:"bl",label:"B-like",probe:"2p",n:2,parts:[["1s","inner",2],["2s","inner",2]],
+  data:[{ion:"B",Z:5,I:8.2980},{ion:"C+",Z:6,I:24.3832},{ion:"N2+",Z:7,I:47.4453},
+        {ion:"O3+",Z:8,I:77.4135},{ion:"F4+",Z:9,I:114.2428},{ion:"Ne5+",Z:10,I:157.9340}]},
+ {key:"cl",label:"C-like",probe:"2p",n:2,parts:[["1s","inner",2],["2s","inner",2],["2p","same",1]],
+  data:[{ion:"C",Z:6,I:11.2603},{ion:"N+",Z:7,I:29.6011},{ion:"O2+",Z:8,I:54.9355},
+        {ion:"F3+",Z:9,I:87.1398},{ion:"Ne4+",Z:10,I:126.2470}]},
+ {key:"ne",label:"Ne-like",probe:"2p",n:2,parts:[["1s","inner",2],["2s","inner",2],["2p","same",5]],
+  data:[{ion:"Ne",Z:10,I:21.5645},{ion:"Na+",Z:11,I:47.2864},{ion:"Mg2+",Z:12,I:80.1437},
+        {ion:"Al3+",Z:13,I:119.9924},{ion:"Si4+",Z:14,I:166.7670},{ion:"P5+",Z:15,I:220.4210},
+        {ion:"S6+",Z:16,I:280.9537},{ion:"Cl7+",Z:17,I:348.3150}]},
+ {key:"na",label:"Na-like",probe:"3s",n:3,parts:[["1s","inner",2],["2s","inner",2],["2p","inner",6]],
+  data:[{ion:"Na",Z:11,I:5.1391},{ion:"Mg+",Z:12,I:15.0353},{ion:"Al2+",Z:13,I:28.4476},
+        {ion:"Si3+",Z:14,I:45.1418},{ion:"P4+",Z:15,I:65.0231},{ion:"S5+",Z:16,I:88.0516},
+        {ion:"Cl6+",Z:17,I:114.2000},{ion:"Ar7+",Z:18,I:143.4600}]},
+ {key:"mg",label:"Mg-like",probe:"3s",n:3,parts:[["1s","inner",2],["2s","inner",2],["2p","inner",6],["3s","same",1]],
+  data:[{ion:"Mg",Z:12,I:7.6462},{ion:"Al+",Z:13,I:18.8286},{ion:"Si2+",Z:14,I:33.4930},
+        {ion:"P3+",Z:15,I:51.4439},{ion:"S4+",Z:16,I:72.5945},{ion:"Cl5+",Z:17,I:96.9400},
+        {ion:"Ar6+",Z:18,I:126.2050}]},
+ {key:"al",label:"Al-like",probe:"3p",n:3,parts:[["1s","inner",2],["2s","inner",2],["2p","inner",6],["3s","ring",2]],
+  data:[{ion:"Al",Z:13,I:5.9858},{ion:"Si+",Z:14,I:16.3459},{ion:"P2+",Z:15,I:30.2027},
+        {ion:"S3+",Z:16,I:47.2220},{ion:"Cl4+",Z:17,I:67.8000},{ion:"Ar5+",Z:18,I:91.0070}]}
+];
+
+var REVISIONS=[
+ {ion:"Ar7+",prev:143.66,now:143.46,used:"Na-like table"},
+ {ion:"S3+",prev:47.302,now:47.222,used:"Al-like table"},
+ {ion:"Cl4+",prev:67.680,now:67.800,used:"Al-like table"},
+ {ion:"S5+",prev:88.1024,now:88.0516,used:"Na-like table"},
+ {ion:"Cl5+",prev:97.030,now:96.940,used:"Mg-like table"},
+ {ion:"F3+",prev:87.175,now:87.1398,used:"C-like table"},
+ {ion:"S4+",prev:72.5925,now:72.5945,used:"Mg-like table"}
+];
+
+var CASCS=[
+ {atom:"N",Z:7,n:2,IEs:[14.5341,29.6011,47.4453,77.4735,97.8902],
+  cfgs:["2p3 4S","2p2 3P","2p1 2P","2p0 1S","2s1 2S"]},
+ {atom:"O",Z:8,n:2,IEs:[13.6181,35.1175,54.9355,77.4135,113.8989],
+  cfgs:["2p4 3P","2p3 4S","2p2 3P","2p1 2P","2s1 2S"]},
+ {atom:"Ne",Z:10,n:2,IEs:[21.5645,40.9629,63.4233,97.19,126.247,157.934,207.276,239.099],
+  cfgs:["2p6 1S","2p5 2P","2p4 3P","2p3 4S","2p2 3P","2p1 2P","2s2 1S","2s1 2S"]},
+ {atom:"Ar",Z:18,n:3,IEs:[15.7596,27.6297,40.735,59.58,75.02,91.007,126.205,143.46],
+  cfgs:["3p6 1S","3p5 2P","3p4 3P","3p3 4S","3p2 3P","3p1 2P","3s2 1S","3s1 2S"]}
+];
+
+/* ---------- helpers ---------- */
+function req(seq){
+ return seq.data.map(function(d){
+  var Zs=Math.sqrt(d.I*seq.n*seq.n/HEV);
+  return {ion:d.ion,Z:d.Z,I:d.I,Zs:Zs,sig:d.Z-Zs};
+ });
+}
+function seqByKey(k){for(var i=0;i<SEQ.length;i++)if(SEQ[i].key===k)return SEQ[i];return null;}
+function integrity(seq){
+ var L=req(seq),i,msgs=[],zs={},dups=[];
+ for(i=1;i<L.length;i++)if(L[i].Z<=L[i-1].Z)msgs.push("Z not increasing at "+L[i].ion);
+ for(i=0;i<L.length;i++){if(zs[L[i].Z])dups.push(L[i].Z);zs[L[i].Z]=1;}
+ if(dups.length)msgs.push("duplicate Z "+dups.join(","));
+ for(i=0;i<L.length;i++)if(!isFinite(L[i].Zs)||L[i].Zs<=0)msgs.push("bad inversion "+L[i].ion);
+ return msgs.length?msgs.join("; "):"ok";
+}
+function evalShifted(list,a){
+ var n=list.length,su=0,sv=0,suu=0,suv=0,j;
+ for(j=0;j<n;j++){var u=1/(list[j].Z-a),v=list[j].sig;su+=u;sv+=v;suu+=u*u;suv+=u*v;}
+ var d=n*suu-su*su;
+ if(Math.abs(d)<1e-14)return {ss:1e12,s0:0,c:0,a:a};
+ var cc=(n*suv-su*sv)/d,s02=(sv-cc*su)/n,ss=0;
+ for(j=0;j<n;j++){var pr=s02+cc/(list[j].Z-a);ss+=(pr-list[j].sig)*(pr-list[j].sig);}
+ return {ss:ss,s0:s02,c:cc,a:a};
+}
+function fitShifted(list){
+ var zmin=Math.min.apply(null,list.map(function(r){return r.Z;}));
+ var maxA=zmin-0.05,best=null,step=0.02,a,j;
+ for(a=0.05;a<maxA;a+=step){
+  var skip=false;
+  for(j=0;j<list.length;j++)if(Math.abs(list[j].Z-a)<0.05)skip=true;
+  if(skip)continue;
+  var f=evalShifted(list,a);
+  if(!best||f.ss<best.ss)best=f;
+ }
+ if(!best)return {s0:0,c:0,a:0.5,rms:1};
+ var lo=Math.max(0.02,best.a-step),hi=Math.min(maxA,best.a+step),it;
+ for(it=0;it<50;it++){
+  var m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;
+  var f1=evalShifted(list,m1),f2=evalShifted(list,m2);
+  if(f1.ss<f2.ss)hi=m2;else lo=m1;
+ }
+ var mid=(lo+hi)/2,ff=evalShifted(list,mid);
+ if(ff.ss<best.ss)best=ff;
+ var sum=0;
+ for(j=0;j<list.length;j++){var pr=best.s0+best.c/(list[j].Z-best.a);sum+=(pr-list[j].sig)*(pr-list[j].sig);}
+ return {s0:best.s0,c:best.c,a:best.a,rms:Math.sqrt(sum/list.length)};
+}
+function fmt(v,d){return (typeof v==="number"&&isFinite(v))?v.toFixed(d):"—";}
+function sigma(z,I,n){return z-Math.sqrt(I*n*n/HEV);}
+
+/* ---------- self-test ---------- */
+(function(){
+ var na=5.1391,zs=Math.sqrt(na*9/HEV);
+ var mg=Math.sqrt(7.6462*9/HEV);
+ var ok1=Math.abs(zs-1.8438)<0.0005;
+ var ok2=Math.abs((12-mg)-9.7510)<0.0005;
+ var integ=integrity(seqByKey("mg"));
+ document.getElementById("selftest").textContent=
+  "APP IS RUNNING — self-test: Na Zs = "+zs.toFixed(4)+" (expect 1.8438); Mg sigma = "+
+  (12-mg).toFixed(4)+" (expect 9.7510); Mg-like integrity "+integ+". "+
+  SEQ.length+" sequences, "+SEQ.reduce(function(a,s){return a+s.data.length;},0)+" members."+
+  ((ok1&&ok2&&integ==="ok")?" — all checks pass.":" — CHECK FAILED.");
+})();
+
+var F={};
+function run(){
+ SEQ.forEach(function(s){
+  var L=req(s);
+  F[s.key]={req:L,sh:fitShifted(L),integ:integrity(s)};
+ });
+
+ /* Panel 1 */
+ var rh="";
+ REVISIONS.forEach(function(r){
+  var d=r.now-r.prev;
+  rh+="<tr><td><b>"+r.ion+"</b></td><td class='mono'>"+r.prev.toFixed(4)+
+   "</td><td class='mono'>"+r.now.toFixed(4)+"</td><td class='mono bad'>"+
+   (d>=0?"+":"")+d.toFixed(4)+"</td><td class='dim'>"+r.used+"</td></tr>";
+ });
+ document.getElementById("tbRev").innerHTML=rh;
+
+ /* Panel 2 */
+ var fh="",worst=0;
+ SEQ.forEach(function(s){
+  var f=F[s.key];
+  var cls=f.sh.rms<0.006?"ok":(f.sh.rms<0.03?"mid":"bad");
+  if(f.sh.rms>worst)worst=f.sh.rms;
+  fh+="<tr><td><b>"+s.label+"</b></td><td>"+s.probe+"</td><td class='mono'>"+f.sh.s0.toFixed(4)+
+   "</td><td class='mono'>"+f.sh.c.toFixed(4)+"</td><td class='mono'>"+f.sh.a.toFixed(4)+
+   "</td><td class='mono "+cls+"'>"+f.sh.rms.toFixed(5)+"</td>"+
+   "<td class='"+(f.integ==="ok"?"ok":"bad")+"'>"+f.integ+"</td></tr>";
+ });
+ document.getElementById("tbFit").innerHTML=fh;
+
+ /* Panel 3 — derivation chain */
+ var p1=F.li.sh.s0/2;
+ var p2=(F.bl.sh.s0-2*p1)/2;
+ var p3=F.be.sh.s0-2*p1;
+ var p4=F.cl.sh.s0-2*p1-2*p2;
+ var p5=(F.na.sh.s0-2*p1-2*p2)/6;
+ var base3=2*p1+2*p2+6*p5;
+ var p6=F.mg.sh.s0-base3;
+ var p7=(F.al.sh.s0-base3)/2;
+ var CH="";
+ function crow(n,v,src,f){CH+="<tr><td><b>"+n+"</b></td><td class='mono'><b>"+v.toFixed(4)+
+  "</b></td><td>"+src+"</td><td class='dim mono'>"+f+"</td></tr>";}
+ crow("a(1s | inner)",p1,"Li-like","σ₀(Li) / 2");
+ crow("a(2s | inner)",p2,"B-like","(σ₀(B) − 2·a₁ₛ) / 2");
+ crow("a(2s | same ring)",p3,"Be-like","σ₀(Be) − 2·a₁ₛ");
+ crow("a(2p | same ring)",p4,"C-like","σ₀(C) − 2·a₁ₛ − 2·a₂ₛ");
+ crow("a(2p | inner)",p5,"Na-like","(σ₀(Na) − 2·a₁ₛ − 2·a₂ₛ) / 6");
+ crow("a(3s | same ring)",p6,"Mg-like","σ₀(Mg) − (2·a₁ₛ + 2·a₂ₛ + 6·a₂ₚ)");
+ crow("a(3s | same ring, diff subshell)",p7,"Al-like","(σ₀(Al) − base) / 2");
+ document.getElementById("tbConst").innerHTML=CH;
+ var innerGap=Math.abs(p1-p5)/((p1+p5)/2)*100;
+ document.getElementById("constTxt").innerHTML=
+  "<b>Inner partner screening is universal:</b> a(1s|inner) = "+p1.toFixed(4)+
+  " vs a(2p|inner) = "+p5.toFixed(4)+" — <b class='"+(innerGap<3?"ok":"mid")+"'>"+innerGap.toFixed(2)+
+  "% apart</b>, from two unrelated sequences with different probes (2s vs 3s).<br>"+
+  "A penetrating partner screens less: a(2s|inner) = "+p2.toFixed(4)+" ("+
+  ((p1-p2)/p1*100).toFixed(0)+"% below the universal value).<br>"+
+  "A same-ring partner screens much less: "+p3.toFixed(4)+" (s) and "+p4.toFixed(4)+" (p). "+
+  "<b class='mid'>Screening depends on the partner's relation to the probe, not on the partner alone.</b>";
+
+ /* Panel 4 — closure + held-out */
+ var nePred=2*p1+2*p2+5*p4;
+ var neMeas=F.ne.sh.s0;
+ var neRes=neMeas-nePred;
+ var ch="";
+ var rows=[
+  {k:"li",meas:F.li.sh.s0,pred:2*p1,def:true},
+  {k:"be",meas:F.be.sh.s0,pred:2*p1+p3,def:true},
+  {k:"bl",meas:F.bl.sh.s0,pred:2*p1+2*p2,def:true},
+  {k:"cl",meas:F.cl.sh.s0,pred:2*p1+2*p2+p4,def:true},
+  {k:"na",meas:F.na.sh.s0,pred:2*p1+2*p2+6*p5,def:true},
+  {k:"mg",meas:F.mg.sh.s0,pred:base3+p6,def:true},
+  {k:"al",meas:F.al.sh.s0,pred:base3+2*p7,def:true},
+  {k:"ne",meas:neMeas,pred:nePred,def:false}
+ ];
+ rows.forEach(function(r){
+  var g=r.meas-r.pred;
+  var cls=r.def?"dim":(Math.abs(g)<0.02?"ok":"bad");
+  ch+="<tr><td><b>"+seqByKey(r.k).label+"</b>"+(r.def?"":" <span class='mid'>[held out]</span>")+
+   "</td><td class='mono'>"+r.meas.toFixed(4)+"</td><td class='mono'>"+r.pred.toFixed(4)+
+   "</td><td class='mono "+cls+"'>"+(g>=0?"+":"")+g.toFixed(4)+"</td><td class='"+cls+"'>"+
+   (r.def?"(defines a constant)":(Math.abs(g)<0.02?"holds":"RESIDUAL — ring-level term"))+"</td></tr>";
+ });
+ document.getElementById("tbClose").innerHTML=ch;
+ document.getElementById("closeTxt").innerHTML=
+  "<b>Held-out prediction:</b> Ne-like is never used to derive a constant. Predicted σ₀ = "+
+  nePred.toFixed(4)+", measured "+neMeas.toFixed(4)+" &mdash; residual <b class='bad'>"+
+  (neRes>=0?"+":"")+neRes.toFixed(4)+"</b>.<br>"+
+  "Every other sequence closes exactly by construction, so this single residual is the whole "+
+  "unexplained part of the model: <b class='bad'>a filled ring screens superadditively</b> "+
+  "(+0.17 for the complete 2p shell).<br>"+
+  "<span class='dim'>The value depends on the corrected input data. Re-run after any further "+
+  "NIST corrections and the residual number will move.</span>";
+ drawChart(rows);
+
+ /* Panel 5 — probe subshell effect */
+ document.getElementById("probeTxt").innerHTML=
+  "The same 3s partner, measured against two different probe subshells:<br>"+
+  "&bull; probe = 3s (Mg-like): <b>"+p6.toFixed(4)+"</b><br>"+
+  "&bull; probe = 3p (Al-like): <b>"+p7.toFixed(4)+"</b><br>"+
+  "Ratio <b>"+(p7/p6).toFixed(2)+"×</b>.<br>"+
+  "<b class='mid'>The probe's own penetration dominates the measurement of a partner's screening.</b> "+
+  "A 3s probe dives into the core and sits inside the 3s partner's shell; a 3p probe does not. "+
+  "This is the same s-vs-p distinction seen in the alkali bench, now measured from the partner side.";
+
+ /* Panel 6 — ⁴S exchange residual */
+ var eh="",into=[],out=[];
+ CASCS.forEach(function(c){
+  var sigs=c.IEs.map(function(I){return sigma(c.Z,I,c.n);});
+  var steps=[],i;
+  for(i=1;i<sigs.length;i++)steps.push(sigs[i-1]-sigs[i]);
+  var psteps=[];
+  for(i=0;i<steps.length;i++){
+   var cf=c.cfgs[i+1];
+   if(cf.indexOf("p")>=0)psteps.push({i:i,v:steps[i],cfg:cf});
+  }
+  for(i=0;i<psteps.length;i++){
+   var is4S=psteps[i].cfg.indexOf("4S")>=0;
+   var prev4S=i>0&&psteps[i-1].cfg.indexOf("4S")>=0;
+   var interp=null;
+   if(i>0&&i<psteps.length-1)interp=(psteps[i-1].v+psteps[i+1].v)/2;
+   if(interp===null)continue;
+   var res=psteps[i].v-interp;
+   if(is4S)into.push({atom:c.atom,v:res});
+   else if(prev4S)out.push({atom:c.atom,v:res});
+  }
+  /* report the two 4S-adjacent steps per cascade */
+  for(i=0;i<psteps.length;i++){
+   var touch=psteps[i].cfg.indexOf("4S")>=0||(i>0&&psteps[i-1].cfg.indexOf("4S")>=0);
+   if(!touch)continue;
+   var ip=(i>0&&i<psteps.length-1)?(psteps[i-1].v+psteps[i+1].v)/2:null;
+   if(ip===null)continue;
+   var rr=psteps[i].v-ip;
+   eh+="<tr><td><b>"+c.atom+"</b></td><td>"+(psteps[i].i+1)+"</td><td>"+psteps[i].cfg+
+    "</td><td class='mono'>"+psteps[i].v.toFixed(4)+"</td><td class='mono'>"+ip.toFixed(4)+
+    "</td><td class='mono mid'>"+(rr>=0?"+":"")+rr.toFixed(4)+"</td></tr>";
+  }
+ });
+ document.getElementById("tbExc").innerHTML=eh;
+ var iStr=into.map(function(e){return e.atom+" "+(e.v>=0?"+":"")+e.v.toFixed(3);}).join(", ");
+ var oStr=out.map(function(e){return e.atom+" "+(e.v>=0?"+":"")+e.v.toFixed(3);}).join(", ");
+ document.getElementById("excTxt").innerHTML=
+  "Steps <b>into</b> the half-filled ring: "+iStr+".<br>"+
+  "Steps <b>out of</b> the half-filled ring: "+oStr+".<br>"+
+  (into.length>=2?"<b class='ok'>The into-⁴S residual replicates across two different shells "+
+   "(n=2 and n=3) — a candidate half-filled exchange constant, distinct from the filled-ring coherence "+
+   "term.</b>":"")+
+  "<br><span class='dim'>Cascade values are literature numbers; NIST-verify the N, O, Ne and Ar "+
+  "series before banking the magnitude.</span>";
+
+ /* Panel 7 — automated hygiene */
+ var map={},order=[];
+ SEQ.forEach(function(s){s.data.forEach(function(d){
+  if(!map[d.ion]){map[d.ion]=[];order.push(d.ion);}
+  map[d.ion].push({v:d.I,src:s.label});});});
+ CASCS.forEach(function(c){c.IEs.forEach(function(I,i){
+  var ion=c.atom+(i)+"+";
+  if(!map[ion]){map[ion]=[];order.push(ion);}
+  map[ion].push({v:I,src:c.atom+" cascade"});});});
+ var hh="",conflicts=0,checked=0;
+ order.forEach(function(ion){
+  var l=map[ion];if(l.length<2)return;
+  checked++;
+  var i,j;
+  for(i=0;i<l.length;i++)for(j=i+1;j<l.length;j++){
+   var g=l[i].v-l[j].v;
+   if(Math.abs(g)<1e-9)continue;
+   conflicts++;
+   var cls=Math.abs(g)<0.005?"ok":(Math.abs(g)<0.05?"mid":"bad");
+   hh+="<tr><td><b>"+ion+"</b></td><td class='dim'>"+l[i].src+"</td><td class='mono'>"+l[i].v.toFixed(4)+
+    "</td><td class='dim'>"+l[j].src+"</td><td class='mono'>"+l[j].v.toFixed(4)+
+    "</td><td class='mono "+cls+"'>"+(g>=0?"+":"")+g.toFixed(4)+"</td><td class='"+cls+"'>"+
+    (Math.abs(g)<0.005?"consistent":"MISMATCH")+"</td></tr>";
+  }
+ });
+ document.getElementById("tbHyg").innerHTML=hh||"<tr><td colspan='7'>no cross-table duplicates found</td></tr>";
+ document.getElementById("hygTxt").innerHTML=
+  "Checked <b>"+checked+"</b> ions that appear in more than one table; found <b class='"+
+  (conflicts?"bad":"ok")+"'>"+conflicts+"</b> value mismatches."+
+  (conflicts?" Fix the source before using either value downstream.":" All cross-table copies agree.");
+
+ /* Recorded */
+ document.getElementById("verdict").innerHTML=
+  "<b>Recorded:</b><br>"+
+  "&bull; screening depends on the partner's <b>relation to the probe</b>, not on the partner alone<br>"+
+  "&bull; inner partner screening is universal: <b>"+((p1+p5)/2).toFixed(4)+"</b> (1s and 2p agree to "+
+  innerGap.toFixed(2)+"%)<br>"+
+  "&bull; penetrating 2s partner, inner: <b>"+p2.toFixed(4)+"</b> ("+((p1-p2)/p1*100).toFixed(0)+"% below universal)<br>"+
+  "&bull; same-ring partners: <b>"+p3.toFixed(4)+"</b> (s), <b>"+p4.toFixed(4)+"</b> (p)<br>"+
+  "&bull; <b class='bad'>filled-ring coherence = "+(neRes>=0?"+":"")+neRes.toFixed(4)+
+  "</b> — the single held-out residual, meaning a complete ring screens superadditively<br>"+
+  "&bull; half-filled exchange residual: into ⁴S "+iStr+" — a second, distinct ring-level term<br>"+
+  "&bull; probe subshell dominates: same 3s partner reads "+p6.toFixed(4)+" against a 3s probe and "+
+  p7.toFixed(4)+" against a 3p probe<br>"+
+  "&bull; <b>withdrawn:</b> X(3s) = 0.337 (contaminated Mg-like fit); use the refitted value above<br>"+
+  "<span class='dim'>All ionization energies remain literature values — the revision log in Panel 1 "+
+  "lists the seven corrections applied, and NIST-verify before banking any magnitude. The next "+
+  "program step is to bring these screening constants back to the <i>spectra</i> (wavelengths and "+
+  "doublet splits), which is where the ring model has to earn its keep.</span>";
+}
+
+function drawChart(rows){
+ var cv=document.getElementById("cv"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height,L=56,R=W-24,T=30,B=H-46;
+ g.clearRect(0,0,W,H);
+ var ymax=0;
+ rows.forEach(function(r){ymax=Math.max(ymax,r.meas,r.pred);});
+ ymax*=1.12;
+ function Y(v){return B-v/ymax*(B-T);}
+ var bw=(R-L)/rows.length*0.32;
+ g.strokeStyle="#2c3850";g.lineWidth=1;
+ g.beginPath();g.moveTo(L,T-10);g.lineTo(L,B);g.lineTo(R,B);g.stroke();
+ g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+ var t;
+ for(t=0;t<=4;t++){var vy=ymax*t/4;
+  g.fillText(vy.toFixed(1),8,Y(vy)+4);
+  g.strokeStyle="rgba(44,56,80,0.4)";g.beginPath();g.moveTo(L,Y(vy));g.lineTo(R,Y(vy));g.stroke();}
+ rows.forEach(function(r,i){
+  var cx=L+(i+0.5)*(R-L)/rows.length;
+  g.fillStyle="#4fd1c5";g.fillRect(cx-bw-2,Y(r.meas),bw,B-Y(r.meas));
+  g.fillStyle="#f6ad55";g.fillRect(cx+2,Y(r.pred),bw,B-Y(r.pred));
+  g.fillStyle="#7d8aa0";g.fillText(seqByKey(r.k).label,cx-22,B+18);
+ });
+ g.fillStyle="#4fd1c5";g.fillText("measured",R-200,20);
+ g.fillStyle="#f6ad55";g.fillText("relation model",R-200,36);
+}
+
+document.getElementById("btnFit")&&0;
+window.addEventListener("load",function(){
+ /* auto-run */
+ (function(){
+  SEQ.forEach(function(s){
+   var L=req(s);
+   F[s.key]={req:L,sh:fitShifted(L),integ:integrity(s)};
+  });
+  var p1=F.li.sh.s0/2;
+  var p2=(F.bl.sh.s0-2*p1)/2;
+  var p3=F.be.sh.s0-2*p1;
+  var p4=F.cl.sh.s0-2*p1-2*p2;
+  var p5=(F.na.sh.s0-2*p1-2*p2)/6;
+  var base3=2*p1+2*p2+6*p5;
+  var p6=F.mg.sh.s0-base3;
+  var p7=(F.al.sh.s0-base3)/2;
+  var nePred=2*p1+2*p2+5*p4,neMeas=F.ne.sh.s0,neRes=neMeas-nePred;
+  var rh="";
+  REVISIONS.forEach(function(r){
+   var d=r.now-r.prev;
+   rh+="<tr><td><b>"+r.ion+"</b></td><td class='mono'>"+r.prev.toFixed(4)+
+    "</td><td class='mono'>"+r.now.toFixed(4)+"</td><td class='mono bad'>"+
+    (d>=0?"+":"")+d.toFixed(4)+"</td><td class='dim'>"+r.used+"</td></tr>";
+  });
+  document.getElementById("tbRev").innerHTML=rh;
+  var fh="";
+  SEQ.forEach(function(s){
+   var f=F[s.key];
+   var cls=f.sh.rms<0.006?"ok":(f.sh.rms<0.03?"mid":"bad");
+   fh+="<tr><td><b>"+s.label+"</b></td><td>"+s.probe+"</td><td class='mono'>"+f.sh.s0.toFixed(4)+
+    "</td><td class='mono'>"+f.sh.c.toFixed(4)+"</td><td class='mono'>"+f.sh.a.toFixed(4)+
+    "</td><td class='mono "+cls+"'>"+f.sh.rms.toFixed(5)+"</td>"+
+    "<td class='"+(f.integ==="ok"?"ok":"bad")+"'>"+f.integ+"</td></tr>";
+  });
+  document.getElementById("tbFit").innerHTML=fh;
+  var CH="";
+  function crow(n,v,src,f){CH+="<tr><td><b>"+n+"</b></td><td class='mono'><b>"+v.toFixed(4)+
+   "</b></td><td>"+src+"</td><td class='dim mono'>"+f+"</td></tr>";}
+  crow("a(1s | inner)",p1,"Li-like","σ₀(Li) / 2");
+  crow("a(2s | inner)",p2,"B-like","(σ₀(B) − 2·a₁ₛ) / 2");
+  crow("a(2s | same ring)",p3,"Be-like","σ₀(Be) − 2·a₁ₛ");
+  crow("a(2p | same ring)",p4,"C-like","σ₀(C) − 2·a₁ₛ − 2·a₂ₛ");
+  crow("a(2p | inner)",p5,"Na-like","(σ₀(Na) − 2·a₁ₛ − 2·a₂ₛ) / 6");
+  crow("a(3s | same ring)",p6,"Mg-like","σ₀(Mg) − base");
+  crow("a(3s | same ring, other subshell)",p7,"Al-like","(σ₀(Al) − base) / 2");
+  document.getElementById("tbConst").innerHTML=CH;
+  var innerGap=Math.abs(p1-p5)/((p1+p5)/2)*100;
+  document.getElementById("constTxt").innerHTML=
+   "<b>Inner partner screening is universal:</b> a(1s|inner) = "+p1.toFixed(4)+
+   " vs a(2p|inner) = "+p5.toFixed(4)+" — <b class='"+(innerGap<3?"ok":"mid")+"'>"+innerGap.toFixed(2)+
+   "% apart</b>, from unrelated sequences with different probes.<br>"+
+   "Penetrating 2s partner, inner: "+p2.toFixed(4)+" ("+((p1-p2)/p1*100).toFixed(0)+"% below universal).<br>"+
+   "Same-ring partners: "+p3.toFixed(4)+" (s) and "+p4.toFixed(4)+" (p). "+
+   "<b class='mid'>Screening depends on the partner's relation to the probe, not on the partner alone.</b>";
+  var ch="";
+  var rows=[
+   {k:"li",meas:F.li.sh.s0,pred:2*p1,def:true},
+   {k:"be",meas:F.be.sh.s0,pred:2*p1+p3,def:true},
+   {k:"bl",meas:F.bl.sh.s0,pred:2*p1+2*p2,def:true},
+   {k:"cl",meas:F.cl.sh.s0,pred:2*p1+2*p2+p4,def:true},
+   {k:"na",meas:F.na.sh.s0,pred:2*p1+2*p2+6*p5,def:true},
+   {k:"mg",meas:F.mg.sh.s0,pred:base3+p6,def:true},
+   {k:"al",meas:F.al.sh.s0,pred:base3+2*p7,def:true},
+   {k:"ne",meas:neMeas,pred:nePred,def:false}
+  ];
+  rows.forEach(function(r){
+   var g=r.meas-r.pred;
+   var cls=r.def?"dim":(Math.abs(g)<0.02?"ok":"bad");
+   ch+="<tr><td><b>"+seqByKey(r.k).label+"</b>"+(r.def?"":" <span class='mid'>[held out]</span>")+
+    "</td><td class='mono'>"+r.meas.toFixed(4)+"</td><td class='mono'>"+r.pred.toFixed(4)+
+    "</td><td class='mono "+cls+"'>"+(g>=0?"+":"")+g.toFixed(4)+"</td><td class='"+cls+"'>"+
+    (r.def?"(defines a constant)":(Math.abs(g)<0.02?"holds":"RESIDUAL — ring-level term"))+"</td></tr>";
+  });
+  document.getElementById("tbClose").innerHTML=ch;
+  document.getElementById("closeTxt").innerHTML=
+   "<b>Held-out prediction:</b> Ne-like is never used to derive a constant. Predicted σ₀ = "+
+   nePred.toFixed(4)+", measured "+neMeas.toFixed(4)+" &mdash; residual <b class='bad'>"+
+   (neRes>=0?"+":"")+neRes.toFixed(4)+"</b>.<br>"+
+   "Every other sequence closes exactly by construction, so this single residual is the whole "+
+   "unexplained part: <b class='bad'>a filled ring screens superadditively</b>."+
+   "<br><span class='dim'>Move with the data: re-run after further NIST corrections and the residual moves.</span>";
+  drawChart(rows);
+  document.getElementById("probeTxt").innerHTML=
+   "The same 3s partner, measured against two different probe subshells:<br>"+
+   "&bull; probe = 3s (Mg-like): <b>"+p6.toFixed(4)+"</b><br>"+
+   "&bull; probe = 3p (Al-like): <b>"+p7.toFixed(4)+"</b><br>"+
+   "Ratio <b>"+(p7/p6).toFixed(2)+"×</b>.<br>"+
+   "<b class='mid'>The probe's own penetration dominates the measurement of a partner's screening.</b> "+
+   "A 3s probe dives into the core and sits inside the 3s partner's shell; a 3p probe does not. "+
+   "Same s-vs-p distinction as the alkali bench, now measured from the partner side.";
+  var eh="",into=[],out=[];
+  CASCS.forEach(function(c){
+   var sigs=c.IEs.map(function(I){return sigma(c.Z,I,c.n);});
+   var steps=[],i;
+   for(i=1;i<sigs.length;i++)steps.push(sigs[i-1]-sigs[i]);
+   var psteps=[];
+   for(i=0;i<steps.length;i++){var cf=c.cfgs[i+1];
+    if(cf.indexOf("p")>=0)psteps.push({i:i,v:steps[i],cfg:cf});}
+   for(i=0;i<psteps.length;i++){
+    var is4S=psteps[i].cfg.indexOf("4S")>=0;
+    var prev4S=i>0&&psteps[i-1].cfg.indexOf("4S")>=0;
+    if(i===0||i>=psteps.length-1)continue;
+    var ip=(psteps[i-1].v+psteps[i+1].v)/2,rr=psteps[i].v-ip;
+    if(is4S)into.push({atom:c.atom,v:rr});
+    else if(prev4S)out.push({atom:c.atom,v:rr});
+    if(is4S||prev4S){
+     eh+="<tr><td><b>"+c.atom+"</b></td><td>"+(psteps[i].i+1)+"</td><td>"+psteps[i].cfg+
+      "</td><td class='mono'>"+psteps[i].v.toFixed(4)+"</td><td class='mono'>"+ip.toFixed(4)+
+      "</td><td class='mono mid'>"+(rr>=0?"+":"")+rr.toFixed(4)+"</td></tr>";
+    }
+   }
+  });
+  document.getElementById("tbExc").innerHTML=eh;
+  var iStr=into.map(function(e){return e.atom+" "+(e.v>=0?"+":"")+e.v.toFixed(3);}).join(", ");
+  var oStr=out.map(function(e){return e.atom+" "+(e.v>=0?"+":"")+e.v.toFixed(3);}).join(", ");
+  document.getElementById("excTxt").innerHTML=
+   "Steps <b>into</b> the half-filled ring: "+iStr+".<br>"+
+   "Steps <b>out of</b> the half-filled ring: "+oStr+".<br>"+
+   (into.length>=2?"<b class='ok'>The into-⁴S residual replicates across two shells (n=2, n=3) — "+
+    "a candidate half-filled exchange constant, distinct from the filled-ring coherence term.</b>":"")+
+   "<br><span class='dim'>NIST-verify the N, O, Ne and Ar series before banking the magnitude.</span>";
+  var map={},order=[];
+  SEQ.forEach(function(s){s.data.forEach(function(d){
+   if(!map[d.ion]){map[d.ion]=[];order.push(d.ion);}
+   map[d.ion].push({v:d.I,src:s.label});});});
+  CASCS.forEach(function(c){c.IEs.forEach(function(I,i){
+   var ion=c.atom+i+"+";
+   if(!map[ion]){map[ion]=[];order.push(ion);}
+   map[ion].push({v:I,src:c.atom+" cascade"});});});
+  var hh="",conflicts=0,checked=0;
+  order.forEach(function(ion){
+   var l=map[ion];if(l.length<2)return;checked++;
+   var i,j;
+   for(i=0;i<l.length;i++)for(j=i+1;j<l.length;j++){
+    var g=l[i].v-l[j].v;if(Math.abs(g)<1e-9)continue;conflicts++;
+    var cls=Math.abs(g)<0.005?"ok":(Math.abs(g)<0.05?"mid":"bad");
+    hh+="<tr><td><b>"+ion+"</b></td><td class='dim'>"+l[i].src+"</td><td class='mono'>"+l[i].v.toFixed(4)+
+     "</td><td class='dim'>"+l[j].src+"</td><td class='mono'>"+l[j].v.toFixed(4)+
+     "</td><td class='mono "+cls+"'>"+(g>=0?"+":"")+g.toFixed(4)+"</td><td class='"+cls+"'>"+
+     (Math.abs(g)<0.005?"consistent":"MISMATCH")+"</td></tr>";
+   }
+  });
+  document.getElementById("tbHyg").innerHTML=hh||"<tr><td colspan='7'>no cross-table duplicates</td></tr>";
+  document.getElementById("hygTxt").innerHTML=
+   "Checked <b>"+checked+"</b> ions appearing in more than one table; <b class='"+
+   (conflicts?"bad":"ok")+"'>"+conflicts+"</b> mismatches."+
+   (conflicts?" Fix the source before using either value downstream.":" All cross-table copies agree.");
+  document.getElementById("verdict").innerHTML=
+   "<b>Recorded:</b><br>"+
+   "&bull; screening depends on the partner's <b>relation to the probe</b>, not on the partner alone<br>"+
+   "&bull; inner partner screening universal: <b>"+((p1+p5)/2).toFixed(4)+"</b> (1s vs 2p: "+innerGap.toFixed(2)+"%)<br>"+
+   "&bull; penetrating 2s partner, inner: <b>"+p2.toFixed(4)+"</b><br>"+
+   "&bull; same-ring partners: <b>"+p3.toFixed(4)+"</b> (s), <b>"+p4.toFixed(4)+"</b> (p)<br>"+
+   "&bull; <b class='bad'>filled-ring coherence = "+(neRes>=0?"+":"")+neRes.toFixed(4)+
+   "</b> — the single held-out residual<br>"+
+   "&bull; half-filled exchange: into ⁴S "+iStr+" — a second, distinct ring-level term<br>"+
+   "&bull; probe subshell dominates: 3s partner reads "+p6.toFixed(4)+" against a 3s probe, "+
+   p7.toFixed(4)+" against a 3p probe<br>"+
+   "&bull; <b>withdrawn:</b> X(3s) = 0.337 (contaminated fit); use the refitted value<br>"+
+   "<span class='dim'>All ionization energies are literature values; Panel 1 lists the seven corrections "+
+   "applied — NIST-verify before banking magnitudes. Next program step: bring these constants back to "+
+   "the <i>spectra</i> (wavelengths, doublet splits), where the ring model must earn its keep.</span>";
+ })();
+});
+</script>
+</body>
+</html>

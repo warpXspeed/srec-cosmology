@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ring-State Spectrum Simulator — rwp/src</title>
+<style>
+  :root { --bg:#0c0f14; --panel:#141922; --panel2:#1a2130; --ink:#d8e0ec;
+          --dim:#7d8aa0; --accent:#4fd1c5; --amber:#f6ad55; --blue:#63b3ed; --red:#fc8181; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:"Segoe UI",system-ui,sans-serif; padding:16px; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:14px; }
+  .grid { display:grid; grid-template-columns:320px 1fr; gap:14px; }
+  @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid #232c3d; border-radius:10px; padding:14px; }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--accent); margin-bottom:10px; }
+  select, button { background:var(--panel2); color:var(--ink); border:1px solid #2c3850;
+                   border-radius:6px; padding:7px 10px; font-size:14px; width:100%; margin-bottom:8px; }
+  button { cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .stat { background:var(--panel2); border-radius:6px; padding:8px 10px; font-size:13px; margin-top:8px; color:var(--dim); }
+  .stat b { color:var(--ink); }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px; }
+  th { text-align:left; color:var(--dim); font-weight:600; padding:4px 6px; border-bottom:1px solid #2c3850; }
+  td { padding:4px 6px; border-bottom:1px solid #1e2635; }
+  .ok { color:var(--accent); } .miss { color:var(--red); } .spur { color:var(--dim); }
+  .scoreboard { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px; }
+  .score { background:var(--panel2); border-radius:8px; padding:10px; text-align:center; }
+  .score .num { font-size:26px; font-weight:700; }
+  .score .lbl { font-size:12px; color:var(--dim); }
+  .score.matched .num { color:var(--accent); } .score.missed .num { color:var(--red); } .score.spurious .num { color:var(--blue); }
+  .legend { font-size:12px; color:var(--dim); margin-top:6px; }
+  .legend span { display:inline-block; margin-right:14px; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  input[type=range] { width:100%; }
+  label.small { font-size:12px; color:var(--dim); display:block; margin-top:8px; }
+  canvas { display:block; margin:0 auto; }
+  .holdout { border-left:3px solid var(--amber); padding-left:8px; }
+</style>
+</head>
+<body>
+
+<h1>Ring-State Spectrum Simulator</h1>
+<div class="sub">
+  Known inputs: shell occupancies (periodic table) + measured series ladder (Rydberg).<br>
+  <span class="holdout">Hold-out test: press <b>Fit sync</b> on one series, then switch series <b>without refitting</b> — do the same ring rates predict the new lines?</span>
+</div>
+
+<div class="grid">
+
+  <div class="panel">
+    <h2>Atom &amp; model</h2>
+    <label class="small">Element / ion</label>
+    <select id="atomSelect"></select>
+    <label class="small">Spectral series</label>
+    <select id="seriesSelect">
+      <option value="lyman">Lyman (→ n=1)</option>
+      <option value="balmer">Balmer (→ n=2)</option>
+      <option value="paschen">Paschen (→ n=3)</option>
+    </select>
+    <label class="small">Model</label>
+    <select id="modelSelect">
+      <option value="standard">A: Reference ladder (measured levels)</option>
+      <option value="spinfit">B: Collective ring-spin fit (SRC)</option>
+      <option value="independent">C: Independent emitters (null)</option>
+    </select>
+    <label class="small">Z_eff scale (core/ring coupling)</label>
+    <input type="range" id="zeff" min="100" max="200" value="100">
+    <div class="stat" id="zeffStat">Z_eff = 1.00</div>
+    <label class="small">Max upper ring n</label>
+    <input type="range" id="nmax" min="3" max="12" value="6">
+    <div class="stat" id="nmaxStat">n = 6</label></div>
+    <div class="row">
+      <button id="btnSimulate">Simulate</button>
+      <button id="btnFit">Fit sync</button>
+    </div>
+    <div class="stat" id="fitStat">Run <b>Fit sync</b> to fit collective ring rates to the reference lines of the current series.</div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Result scoreboard — what the model got</h2>
+      <div class="scoreboard">
+        <div class="score matched"><div class="num" id="cntMatch">0</div><div class="lbl">matched (predicted &amp; measured)</div></div>
+        <div class="score missed"><div class="num" id="cntMiss">0</div><div class="lbl">missed (measured, not predicted)</div></div>
+        <div class="score spurious"><div class="num" id="cntSpur">0</div><div class="lbl">spurious (predicted, not measured)</div></div>
+      </div>
+      <canvas id="spectrumCanvas" width="820" height="190"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--accent)"></span>predicted &amp; matched</span>
+        <span><span class="dot" style="background:var(--amber)"></span>reference (measured)</span>
+        <span><span class="dot" style="background:var(--red)"></span>missed reference</span>
+        <span><span class="dot" style="background:var(--blue)"></span>spurious prediction</span>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Ring configuration (known occupancies)</h2>
+      <canvas id="atomCanvas" width="520" height="300"></canvas>
+      <div class="stat" id="configStat"></div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Transition table</h2>
+      <div style="max-height:280px; overflow-y:auto">
+        <table id="transTable">
+          <thead><tr><th>Transition</th><th>Predicted nm</th><th>Reference nm</th><th>Δ nm</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---- KNOWN INPUTS (not invented): periodic-table shell occupancies
+   and the measured hydrogen-like ladder E_n = -13.6057*Zeff^2/n^2 eV,
+   which for H (Zeff=1) reproduces the measured Lyman/Balmer/Paschen lines. ---- */
+
+const ATOMS = {
+  H:{name:"Hydrogen",Z:1,shells:[1]}, He:{name:"Helium",Z:2,shells:[2]},
+  Li:{name:"Lithium",Z:3,shells:[2,1]}, Be:{name:"Beryllium",Z:4,shells:[2,2]},
+  C:{name:"Carbon",Z:6,shells:[2,4]}, N:{name:"Nitrogen",Z:7,shells:[2,5]},
+  O:{name:"Oxygen",Z:8,shells:[2,6]}, Na:{name:"Sodium",Z:11,shells:[2,8,1]},
+  K:{name:"Potassium",Z:19,shells:[2,8,8,1]}
+};
+const SERIES_LOWER = { lyman:1, balmer:2, paschen:3 };
+const RYDBERG_EV = 13.605693;
+
+const state = { atom:"H", series:"lyman", model:"standard", zeff:1.0, nmax:6,
+                fitRates:null, fittedOnSeries:null };
+
+const levelEnergy = (n, z) => -RYDBERG_EV * z * z / (n * n);
+const lineNm = dE => (dE > 0 ? 1239.842 / dE : null);
+
+function predictStandard(zeff, nLow, nMax) {
+  const L = [];
+  for (let nUp = nLow + 1; nUp <= nMax; nUp++) {
+    const dE = levelEnergy(nUp, zeff) - levelEnergy(nLow, zeff);
+    const nm = lineNm(-dE);
+    if (nm && nm > 10 && nm < 2000) L.push({ nUp, nLow, nm });
+  }
+  return L;
+}
+
+/* Null control: uncorrelated per-transition rates, no shared ladder. */
+function predictIndependent(nLow, nMax) {
+  const L = []; let seed = 987654321 + nLow;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  for (let nUp = nLow + 1; nUp <= nMax; nUp++) {
+    const nm = lineNm(Math.abs((1 + rnd() * 4) - (1 + rnd() * 4)));
+    if (nm && nm > 10 && nm < 2000) L.push({ nUp, nLow, nm });
+  }
+  return L;
+}
+
+/* SRC hypothesis: one collective rate f_r per ring; line = |f_up - f_low| in eV. */
+function predictSpinFit(rates, nLow, nMax) {
+  const L = [];
+  for (let nUp = nLow + 1; nUp <= nMax; nUp++) {
+    const nm = lineNm(Math.abs(rates[nUp - 1] - rates[nLow - 1]));
+    if (nm && nm > 10 && nm < 2000) L.push({ nUp, nLow, nm });
+  }
+  return L;
+}
+
+/* Least-squares fit of ring rates to reference line energies of ONE series.
+   Rates start RANDOM (not from the ladder) so the fit must actually find
+   the structure; differences only are observable (gauge freedom in f_1). */
+function fitSync(zeff, nLow, nMax) {
+  const ref = predictStandard(zeff, nLow, nMax);
+  const N = nMax;
+  let rates = Array.from({ length: N }, (_, i) => (i + 1) * 0.31 + 0.4);
+  const lr0 = 0.05;
+  for (let iter = 0; iter < 40000; iter++) {
+    const grad = new Array(N).fill(0);
+    for (const L of ref) {
+      const iU = L.nUp - 1, iL = L.nLow - 1;
+      const dEref = levelEnergy(L.nUp, zeff) - levelEnergy(L.nLow, zeff);
+      const err = (rates[iU] - rates[iL]) - dEref;
+      grad[iU] += 2 * err; grad[iL] -= 2 * err;
+    }
+    const lr = lr0 / (1 + iter / 5000);
+    for (let i = 0; i < N; i++) rates[i] -= lr * grad[i];
+  }
+  return rates;
+}
+
+/* ---------- rendering ---------- */
+
+function drawAtom() {
+  const c = document.getElementById("atomCanvas"), ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  const cx = c.width / 2, cy = c.height / 2, a = ATOMS[state.atom];
+  ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+  ctx.fillStyle = "#f6ad55"; ctx.fill();
+  ctx.fillStyle = "#0c0f14"; ctx.font = "bold 11px sans-serif"; ctx.fillText("Z=" + a.Z, cx - 12, cy + 4);
+  a.shells.forEach((occ, i) => {
+    const r = 45 + i * 42;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#2c3850"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, r, -0.4, 0.9);
+    ctx.strokeStyle = "#4fd1c5"; ctx.lineWidth = 2.5; ctx.stroke();
+    for (let k = 0; k < occ; k++) {
+      const ang = (k / occ) * Math.PI * 2 - Math.PI / 2 + i * 0.3;
+      ctx.beginPath(); ctx.arc(cx + r * Math.cos(ang), cy + r * Math.sin(ang), 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#63b3ed"; ctx.fill();
+    }
+    ctx.fillStyle = "#7d8aa0"; ctx.font = "11px sans-serif";
+    ctx.fillText("ring " + (i + 1) + ": " + occ + " (sync group)", cx + r - 60, cy - r - 6);
+  });
+  document.getElementById("configStat").innerHTML =
+    "<b>" + a.name + "</b> (Z=" + a.Z + ") — known shell occupancy: <b>" +
+    a.shells.join("–") + "</b>. Each ring = one synchronized collective group (SRC hypothesis).";
+}
+
+function waveColor(nm) {
+  if (nm < 380) return "#9f7aea";
+  const t = Math.min(1, Math.max(0, (nm - 380) / 320));
+  const r = Math.round(255 * Math.min(1, Math.max(0, 1.5 - t * 3)));
+  const g = Math.round(255 * Math.min(1, Math.max(0, 1 - Math.abs(t - 0.5) * 2.4)));
+  const b = Math.round(255 * Math.min(1, Math.max(0, t * 3 - 1.5)));
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
+function classify() {
+  const nLow = SERIES_LOWER[state.series];
+  const ref = predictStandard(state.zeff, nLow, 12).filter(L => L.nm >= 100 && L.nm <= 1000);
+  let pred;
+  if (state.model === "standard")      pred = ref.map(L => ({ ...L }));
+  else if (state.model === "independent") pred = predictIndependent(nLow, state.nmax).filter(L => L.nm >= 100 && L.nm <= 1000);
+  else pred = state.fitRates ? predictSpinFit(state.fitRates, nLow, state.nmax).filter(L => L.nm >= 100 && L.nm <= 1000) : [];
+  const used = new Set();
+  const matched = pred.filter(P => ref.some(R => { if (Math.abs(R.nm - P.nm) < 2.5 && !used.has(R.nm.toFixed(1))) { used.add(R.nm.toFixed(1)); return true; } return false; }));
+  const spurious = pred.filter(P => !matched.includes(P));
+  const missed = ref.filter(R => !used.has(R.nm.toFixed(1)));
+  return { ref, pred, matched, spurious, missed };
+}
+
+function drawSpectrum(res) {
+  const c = document.getElementById("spectrumCanvas"), ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  const nmMin = 80, nmMax = 1050;
+  const x = nm => 30 + (nm - nmMin) / (nmMax - nmMin) * (c.width - 60);
+  ctx.strokeStyle = "#2c3850";
+  ctx.beginPath(); ctx.moveTo(30, c.height - 28); ctx.lineTo(c.width - 30, c.height - 28); ctx.stroke();
+  ctx.fillStyle = "#7d8aa0"; ctx.font = "11px sans-serif";
+  for (let nm = 100; nm <= 1000; nm += 100) {
+    ctx.fillText(nm, x(nm) - 10, c.height - 12);
+    ctx.beginPath(); ctx.moveTo(x(nm), c.height - 28); ctx.lineTo(x(nm), c.height - 24); ctx.stroke();
+  }
+  res.ref.forEach(L => {
+    const missed = res.missed.includes(L);
+    ctx.strokeStyle = missed ? "#fc8181" : "#f6ad55"; ctx.lineWidth = missed ? 3 : 2;
+    ctx.beginPath(); ctx.moveTo(x(L.nm), 20); ctx.lineTo(x(L.nm), c.height - 32); ctx.stroke();
+  });
+  res.pred.forEach(P => {
+    const isMatch = res.matched.includes(P);
+    ctx.beginPath(); ctx.arc(x(P.nm), 26, 6, 0, Math.PI * 2);
+    ctx.fillStyle = waveColor(P.nm); ctx.fill();
+    ctx.strokeStyle = isMatch ? "#4fd1c5" : "#63b3ed"; ctx.lineWidth = 2; ctx.stroke();
+  });
+  ctx.fillStyle = "#7d8aa0"; ctx.fillText("wavelength (nm)", c.width - 140, c.height - 12);
+}
+
+function fillTable(res) {
+  const tb = document.querySelector("#transTable tbody"); tb.innerHTML = "";
+  const row = (cells, cls) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = cells.map(cd => "<td" + (cls ? ' class="' + cls + '"' : "") + ">" + cd + "</td>").join("");
+    tb.appendChild(tr);
+  };
+  res.matched.forEach(P => {
+    const R = res.ref.find(R => Math.abs(R.nm - P.nm) < 2.5);
+    row(["ring " + P.nUp + " → ring " + P.nLow, P.nm.toFixed(2), R.nm.toFixed(2),
+         Math.abs(P.nm - R.nm).toFixed(2), "predicted ✓"], "ok");
+  });
+  res.missed.forEach(R => row(["ring " + R.nUp + " → ring " + R.nLow, "—", R.nm.toFixed(2), "—", "NOT predicted"], "miss"));
+  res.spurious.forEach(P => row(["ring " + P.nUp + " → ring " + P.nLow, P.nm.toFixed(2), "—", "—", "spurious"], "spur"));
+  document.getElementById("cntMatch").textContent = res.matched.length;
+  document.getElementById("cntMiss").textContent = res.missed.length;
+  document.getElementById("cntSpur").textContent = res.spurious.length;
+}
+
+function updateStats() {
+  document.getElementById("zeffStat").textContent = "Z_eff = " + state.zeff.toFixed(2);
+  document.getElementById("nmaxStat").textContent = "n = " + state.nmax;
+  const f = document.getElementById("fitStat");
+  if (state.fitRates) {
+    f.innerHTML = "Fitted collective ring rates (eV): <b>" +
+      state.fitRates.map(v => v.toFixed(2)).join(", ") + "</b><br>" +
+      "Fitted on <b>" + state.fittedOnSeries + "</b>. Switch the series <b>without refitting</b> for the hold-out test. " +
+      "<button id='btnClear' style='width:auto;padding:3px 10px;margin-top:4px'>Clear fit</button>";
+    const bc = document.getElementById("btnClear");
+    if (bc) bc.addEventListener("click", () => { state.fitRates = null; state.fittedOnSeries = null; simulate(); });
+  } else {
+    f.innerHTML = "Run <b>Fit sync</b> to fit collective ring rates to the reference lines of the current series.";
+  }
+}
+
+function simulate() {
+  const res = classify();
+  drawAtom();
+  drawSpectrum(res);
+  fillTable(res);
+  updateStats();
+}
+
+/* ---------- controls ---------- */
+document.getElementById("btnFit").addEventListener("click", () => {
+  const nLow = SERIES_LOWER[state.series];
+  state.fitRates = fitSync(state.zeff, nLow, state.nmax);
+  state.fittedOnSeries = document.getElementById("seriesSelect")
+    .options[document.getElementById("seriesSelect").selectedIndex].text;
+  state.model = "spinfit";
+  document.getElementById("modelSelect").value = "spinfit";
+  simulate();
+});
+const atomSel = document.getElementById("atomSelect");
+Object.keys(ATOMS).forEach(k => {
+  const o = document.createElement("option");
+  o.value = k; o.textContent = ATOMS[k].name + " (Z=" + ATOMS[k].Z + ")";
+  atomSel.appendChild(o);
+});
+atomSel.addEventListener("change", e => { state.atom = e.target.value; state.fitRates = null; state.fittedOnSeries = null; simulate(); });
+document.getElementById("seriesSelect").addEventListener("change", e => { state.series = e.target.value; simulate(); });
+document.getElementById("modelSelect").addEventListener("change", e => { state.model = e.target.value; simulate(); });
+document.getElementById("zeff").addEventListener("input", e => { state.zeff = e.target.value / 100; simulate(); });
+document.getElementById("nmax").addEventListener("input", e => { state.nmax = +e.target.value; state.fitRates = null; state.fittedOnSeries = null; simulate(); });
+document.getElementById("btnSimulate").addEventListener("click", simulate);
+
+simulate();
+</script>
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atomic Shape Lab — drag the orbitals, match the spectral line</title>
+<script>
+window.onerror=function(m,s,l){var b=document.getElementById("err");
+ if(b){b.style.display="block";b.textContent="Error: "+m+" (line "+l+") — report this line number";}};
+</script>
+<style>
+:root{--bg:#0c0f14;--panel:#141922;--p2:#1a2130;--ink:#d8e0ec;--dim:#7d8aa0;--acc:#4fd1c5;--amb:#f6ad55;--blue:#63b3ed;--red:#fc8181}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding:14px}
+#err{display:none;background:#5c1010;color:#ffb3b3;border:1px solid var(--red);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:var(--acc);font-size:12px;margin-bottom:10px}
+h1{font-size:19px;margin-bottom:3px}
+h2{font-size:12px;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px;line-height:1.6}
+.panel{background:var(--panel);border:1px solid #232c3d;border-radius:9px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:11px;color:var(--dim);margin:8px 0 2px}
+select{background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:5px 8px;font-size:12px;width:100%}
+input[type=range]{width:100%}
+button{background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer;margin:4px 6px 0 0}
+button:hover{border-color:var(--acc)}
+.stat{background:var(--p2);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--dim);margin:5px 0;line-height:1.6}
+.stat b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{padding:4px 5px;color:var(--dim);border-bottom:1px solid #2c3850;text-align:left}
+td{padding:4px 5px;border-bottom:1px solid #1e2635}
+.mono{font-family:Consolas,monospace}
+.ok{color:var(--acc)}.bad{color:var(--red)}.mid{color:var(--amb)}.dim{color:var(--dim)}
+canvas{display:block;width:100%;height:auto;background:#0a0e14;border-radius:6px}
+.warn{border-left:3px solid var(--red);padding-left:10px}
+.teach{border-left:3px solid var(--acc);padding-left:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="selftest">checking...</div>
+<h1>Atomic Shape Lab</h1>
+<p class="sub">
+Start from a measured spectral line and build the orbital shapes that produce it. The two sliders are
+effective charges on the s and p electrons; the shapes, their sizes, and the predicted wavelength all
+move together. Goal: match the measured line, then see <i>why</i> the two shapes must differ.
+</p>
+
+<div class="panel">
+<h2>Self-test — radial machinery (gate: must pass)</h2>
+<div id="tbSelf"></div>
+<div class="stat" id="selfTxt"></div>
+</div>
+
+<div class="panel">
+<h2>1 — pick an atom</h2>
+<select id="selEl">
+ <option>Li</option><option selected>Na</option><option>K</option><option>Rb</option><option>Cs</option>
+</select>
+<div class="stat" id="elTxt"></div>
+</div>
+
+<div class="panel">
+<h2>2 — touch it: match the measured line</h2>
+<label>s-state effective charge Z<sub>s</sub> &nbsp;<span id="lblZs" class="mono"></span></label>
+<input type="range" id="rngZs" min="0.60" max="3.40" step="0.0001" value="1.8438">
+<label>p-state effective charge Z<sub>p</sub> &nbsp;<span id="lblZp" class="mono"></span></label>
+<input type="range" id="rngZp" min="0.60" max="2.90" step="0.0001" value="1.4171">
+<button id="btnReset">Reset to measured values</button>
+<button id="btnBlind">Hide the answer (challenge mode)</button>
+<div class="stat" id="matchTxt"></div>
+</div>
+
+<div class="grid2">
+<div class="panel">
+<h2>3a — radial probability P(r)</h2>
+<canvas id="cvRad" width="520" height="300"></canvas>
+<div class="stat dim" style="font-size:11px">Solid: the model's shape (effective quantum number
+n* = n/Z<sub>eff</sub>). Dashed: same charge but no penetration (n* = n) — the shape the naive model
+would give.</div>
+</div>
+<div class="panel">
+<h2>3b — the cloud, in cross-section</h2>
+<canvas id="cvCloud" width="520" height="300"></canvas>
+<div class="stat dim" style="font-size:11px">Left: s state (spherical). Right: p state (a lobe through
+the nucleus). Brightness is probability density. Scale is in a₀.</div>
+</div>
+</div>
+
+<div class="panel">
+<h2>4 — what each slider is doing</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>quantity</th><th>s state</th><th>p state</th><th>what it means</th></tr></thead>
+<tbody id="tbState"></tbody></table></div>
+</div>
+
+<div class="panel">
+<h2>5 — the family: shape parameters for all five alkalis</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>atom</th><th>Z</th><th>n</th><th>Z<sub>s</sub></th><th>Z<sub>p</sub></th>
+<th>n*<sub>s</sub></th><th>n*<sub>p</sub></th><th>&lang;r&rang;<sub>s</sub> (a₀)</th>
+<th>&lang;r&rang;<sub>p</sub> (a₀)</th><th>&Delta;&lang;r&rang; (a₀)</th><th>&delta;<sub>s</sub>&minus;&delta;<sub>p</sub></th></tr></thead>
+<tbody id="tbFam"></tbody></table></div>
+<div class="stat" id="famTxt"></div>
+</div>
+
+<div class="panel">
+<h2>6 — teaching notes</h2>
+<div class="stat teach">
+<b>1. One line, two shapes.</b> The D-line wavelength is the energy gap between the s and p states.
+Because both states share the same n, the gap is fixed by the <i>difference</i> in effective charge.
+The student can slide either shape and watch the line move — the line is a joint constraint.<br><br>
+<b>2. Penetration is the difference between the shapes.</b> Z<sub>p</sub> &lt; Z<sub>s</sub> for every
+atom, so the p electron feels a weaker core: it penetrates more and its cloud is <i>larger</i> on
+average, not smaller. The cloud panel shows this directly.<br><br>
+<b>3. Sensitivity is the point.</b> A 1% error in the energy gap is a 1% error in wavelength; at 589 nm
+that is 6 nm, which is far wider than the line. The spectrum is a sharp instrument — which is why our
+binding-channel constants could not predict these lines to better than ~8 nm.<br><br>
+<b>4. The discovery waiting here.</b> In the table below, &delta;<sub>s</sub>&minus;&delta;<sub>p</sub>
+is nearly the same for Na, K, Rb and Cs — and lithium is conspicuously different. That is the same
+lithium deviation found twice earlier, in two unrelated parameterizations, from two unrelated
+measurements. <b>Ask the student to find it.</b><br><br>
+<b>5. What this model is not.</b> These are effective <i>one-electron</i> shapes: hydrogenic forms
+rescaled by an effective charge. Real atoms have correlated motion, and the collective terms we
+measured (a completed-shell excess of +0.033 per partner, a half-filled exchange residual) are exactly
+the physics this picture cannot hold. The lab shows the shape that the spectrum implies; it does not
+claim it is the whole wavefunction.
+</div>
+</div>
+
+<div class="panel">
+<h2>7 — honest caveats</h2>
+<div class="stat warn">
+<b>Effective defect &ne; spectroscopic quantum defect.</b> Here &delta; = n(1 &minus; 1/Z<sub>eff</sub>)
+is a re-parameterization of our own effective charge, not the tabulated quantum defect from NIST/CRC.
+For inner shells the two coincide; for a valence electron they do not, because the valence electron
+sees a screened nucleus rather than a bare one. Use this lab for shapes and intuition, not for citing
+quantum-defect tables.<br><br>
+<b>&delta;<sub>p</sub> inherits a second assumption.</b> Z<sub>p</sub> comes from the D-line gap, not
+from a binding energy, so the p "shape" is fixed by the transition rather than measured independently.
+That is exactly what makes the matching exercise work, and also why a mismatch would blame the model
+and the assumption together.<br><br>
+<b>Channel scope.</b> This lab covers <i>position</i> and <i>shape</i>. Intensity (radial overlap
+strengths) uses the radial functions computed here but is not tested against measured oscillator
+strengths — that check is still open in the Strength Channel Probe.
+</div>
+</div>
+
+<script>
+"use strict";
+var HEV=13.605693122994, HC=1239.8419843320026;
+function fmt(v,d){return (typeof v==="number"&&isFinite(v))?v.toFixed(d):"-";}
+
+/* ---------- radial machinery ---------- */
+function fact(n){var r=1,i;for(i=2;i<=n;i++)r*=i;return r;}
+function laguerre(n,a,x){
+ if(n===0)return 1;
+ var L0=1,L1=1+a-x;
+ if(n===1)return L1;
+ for(var k=2;k<=n;k++){
+  var L2=((2*k-1+a-x)*L1-(k-1+a)*L0)/k; L0=L1; L1=L2;
+ }
+ return L1;
+}
+/* hydrogenic radial function with effective principal number nstar */
+function Rnl(l,n,nstar,r){
+ if(r<=0)return 0;
+ var rho=2*r/nstar;
+ var pre=Math.pow(2/nstar,1.5)*Math.sqrt(fact(n-l-1)/(2*nstar*fact(n+l)));
+ return pre*Math.exp(-rho/2)*Math.pow(rho,l)*laguerre(n-l-1,2*l+1,rho);
+}
+function simp(f,a,b,n){
+ if(n%2)n++; var h=(b-a)/n,s=f(a)+f(b),i;
+ for(i=1;i<n;i++)s+=f(a+i*h)*(i%2?4:2);
+ return s*h/3;
+}
+function normRad(l,n,ns){
+ var v=simp(function(r){var q=Rnl(l,n,ns,r);return r*r*q*q;},0,90,14000);
+ return (v>0&&isFinite(v))?v:1;
+}
+function meanR(l,n,ns){
+ var nn=normRad(l,n,ns);
+ var m=simp(function(r){var q=Rnl(l,n,ns,r);return r*r*r*q*q;},0,90,14000)/nn;
+ return isFinite(m)?m:0;
+}
+
+/* ---------- SELF-TEST ----------
+   META is now DERIVED from CASES. The earlier crash came from two hand-maintained
+   tables drifting: CASES listed 3p, META did not, and the pair lookup read B[0]
+   off undefined. One source of truth removes that whole failure class.          */
+var CASES=[["1s",0,1,1.5],["2s",0,2,6],["2p",1,2,5],
+           ["3s",0,3,13.5],["3p",1,3,12.5],["3d",2,3,10.5]];
+var META={};
+CASES.forEach(function(c){META[c[0]]=[c[1],c[2]];});
+
+var PAIRS=[["1s","2s"],["2s","3s"],["2p","3p"],["3s","3d"]];
+var selfRows=[],selfPass=true,selfErr=null;
+
+(function(){
+ try{
+  CASES.forEach(function(c){
+   var nn=normRad(c[1],c[2],c[2]), mr=meanR(c[1],c[2],c[2]);
+   var okN=Math.abs(nn-1)<0.003, okR=Math.abs(mr-c[3])/c[3]<0.005;
+   if(!okN||!okR)selfPass=false;
+   selfRows.push([c[0],"norm "+fmt(nn,4)+" / &lt;r&gt; "+fmt(mr,2),fmt(c[3],2),okN&&okR]);
+  });
+  PAIRS.forEach(function(p){
+   var A=META[p[0]],B=META[p[1]];
+   if(!A||!B){
+    selfPass=false;
+    selfRows.push([p[0]+" &times; "+p[1],"lookup missing","-",false]);
+    return;
+   }
+   var ov=simp(function(r){
+    var a=Rnl(A[0],A[1],A[1],r), b=Rnl(B[0],B[1],B[1],r);
+    return r*r*a*b;
+   },0,90,14000);
+   var ok=Math.abs(ov)<0.003; if(!ok)selfPass=false;
+   selfRows.push([p[0]+" &times; "+p[1],"overlap "+fmt(ov,6),"0",ok]);
+  });
+ }catch(e){
+  selfPass=false; selfErr=e;
+  selfRows.push(["SELF-TEST ABORTED","exception",String((e&&e.message)||e),false]);
+ }
+ var h="<div style='overflow:auto'><table><thead><tr><th>check</th><th>computed</th>"+
+  "<th>expected</th><th>grade</th></tr></thead><tbody>";
+ selfRows.forEach(function(r){
+  h+="<tr><td>"+r[0]+"</td><td class='mono'>"+r[1]+"</td><td class='mono'>"+r[2]+
+   "</td><td class='"+(r[3]?"ok":"bad")+"'>"+(r[3]?"PASS":"FAIL")+"</td></tr>";
+ });
+ h+="</tbody></table></div>";
+ document.getElementById("tbSelf").innerHTML=h;
+ document.getElementById("selfTxt").innerHTML=selfPass
+  ?"<b class='ok'>Radial machinery validated against exact hydrogenic values — normalizations, mean radii, "+
+   "and orthogonality of same-l states. The shapes below are trustworthy as shapes.</b>"
+  :"<b class='bad'>Self-test FAILED"+(selfErr?" ("+String(selfErr.message||selfErr)+")":"")+
+   " — do not use the numbers below until this is green.</b>";
+})();
+
+/* ---------- element data ---------- */
+var EL={
+ Li:{Z:3,n:2,Is:5.391714,D1:670.791,D2:670.776},
+ Na:{Z:11,n:3,Is:5.139076,D1:589.592,D2:588.995},
+ K: {Z:19,n:4,Is:4.340664,D1:770.108,D2:766.701},
+ Rb:{Z:37,n:5,Is:4.177127,D1:794.979,D2:780.241},
+ Cs:{Z:55,n:6,Is:3.893905,D1:894.592,D2:852.347}
+};
+function airIndex(nm){var s=1000/nm,s2=s*s;
+ return 1+(6432.8+2949810/(146-s2)+25540/(41-s2))*1e-8;}
+function toAir(lv){var la=lv,i;for(i=0;i<8;i++)la=lv/airIndex(la);return la;}
+function fromAir(la){var lv=la,i;for(i=0;i<8;i++)lv=la*airIndex(lv);return lv;}
+function measOf(k){
+ var e=EL[k], cent=(e.D1+e.D2)/2, vac=fromAir(cent), E=HC/vac;
+ var Ip=e.Is-E;
+ return {k:k,Z:e.Z,n:e.n,Is:e.Is,cent:cent,E:E,
+         Zs:Math.sqrt(e.Is*e.n*e.n/HEV),
+         Zp:Math.sqrt(Math.max(Ip,0.01)*e.n*e.n/HEV)};
+}
+var MEAS={};Object.keys(EL).forEach(function(k){MEAS[k]=measOf(k);});
+
+/* ---------- charts ---------- */
+var BLIND=false;
+function drawRad(m,Zs,Zp){
+ var cv=document.getElementById("cvRad"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height,L=46,R=W-16,T=26,B=H-40;
+ g.clearRect(0,0,W,H);
+ var nsS=m.n/Zs, nsP=m.n/Zp;
+ var nnS=normRad(0,m.n,nsS), nnP=normRad(1,m.n,nsP);
+ var rS=meanR(0,m.n,nsS), rP=meanR(1,m.n,nsP);
+ var rmax=Math.max(rS,rP)*3.2; if(!(rmax>0))rmax=10;
+ function Ps(r){var v=Rnl(0,m.n,nsS,r);return r*r*v*v/nnS;}
+ function Pp(r){var v=Rnl(1,m.n,nsP,r);return r*r*v*v/nnP;}
+ var ymax=0,i,r;
+ for(i=1;i<=400;i++){r=rmax*i/400;ymax=Math.max(ymax,Ps(r),Pp(r));}
+ if(!(ymax>0))ymax=1;
+ ymax*=1.12;
+ function X(v){return L+v/rmax*(R-L);}
+ function Y(v){return B-v/ymax*(B-T);}
+ g.strokeStyle="#2c3850";g.lineWidth=1;
+ g.beginPath();g.moveTo(L,T-8);g.lineTo(L,B);g.lineTo(R,B);g.stroke();
+ g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+ for(i=0;i<=4;i++){
+  var vy=ymax*i/4;
+  g.fillText((vy*1000).toFixed(1),6,Y(vy)+4);
+  g.strokeStyle="rgba(44,56,80,0.4)";g.beginPath();g.moveTo(L,Y(vy));g.lineTo(R,Y(vy));g.stroke();
+ }
+ g.fillText("P(r) x1000",6,14);
+ g.fillText("r (a0)",R-56,H-6);
+ for(i=0;i<=5;i++){var vx=rmax*i/5;g.fillText(vx.toFixed(0),X(vx)-6,H-22);}
+ /* naive: no penetration (normalization hoisted OUT of the loop) */
+ var nnNaive=normRad(0,m.n,m.n);
+ g.setLineDash([3,3]);g.strokeStyle="rgba(99,179,237,0.5)";g.lineWidth=1.5;
+ g.beginPath();
+ for(i=1;i<=300;i++){
+  r=rmax*i/300;
+  var vn=Rnl(0,m.n,m.n,r);
+  var yn=r*r*vn*vn/nnNaive;
+  if(i===1)g.moveTo(X(r),Y(yn));else g.lineTo(X(r),Y(yn));
+ }
+ g.stroke();g.setLineDash([]);
+ /* s */
+ g.strokeStyle="#4fd1c5";g.lineWidth=2.4;g.beginPath();
+ for(i=1;i<=400;i++){r=rmax*i/400;var y2=Ps(r);
+  if(i===1)g.moveTo(X(r),Y(y2));else g.lineTo(X(r),Y(y2));}
+ g.stroke();
+ /* p */
+ g.strokeStyle="#f6ad55";g.lineWidth=2.4;g.beginPath();
+ for(i=1;i<=400;i++){r=rmax*i/400;var y3=Pp(r);
+  if(i===1)g.moveTo(X(r),Y(y3));else g.lineTo(X(r),Y(y3));}
+ g.stroke();
+ /* mean-radius markers */
+ [[rS,"#4fd1c5"],[rP,"#f6ad55"]].forEach(function(mk){
+  g.strokeStyle=mk[1];g.setLineDash([2,3]);g.beginPath();
+  g.moveTo(X(mk[0]),T-8);g.lineTo(X(mk[0]),B);g.stroke();g.setLineDash([]);
+ });
+ g.fillStyle="#4fd1c5";g.fillText("s   <r>="+rS.toFixed(2),8,32);
+ g.fillStyle="#f6ad55";g.fillText("p   <r>="+rP.toFixed(2),8,48);
+ g.fillStyle="#63b3ed";g.fillText("s, no penetration",8,64);
+}
+function drawCloud(m,Zs,Zp){
+ var cv=document.getElementById("cvCloud"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height;
+ g.clearRect(0,0,W,H);
+ var nsS=m.n/Zs, nsP=m.n/Zp;
+ var half=W/2-8, size=half-10, top=8;
+ var rS=meanR(0,m.n,nsS), rP=meanR(1,m.n,nsP);
+ var rmax=Math.max(rS,rP)*2.6; if(!(rmax>0))rmax=10;
+ var nnS=normRad(0,m.n,nsS), nnP=normRad(1,m.n,nsP);
+ function densS(r){var v=Rnl(0,m.n,nsS,r);return v*v/nnS;}
+ function densP(r,ct){var v=Rnl(1,m.n,nsP,r);return v*v/nnP*ct;}
+ var imgS=g.createImageData(size,size), imgP=g.createImageData(size,size);
+ var mxS=0,mxP=0,i,j,x,y,rr,ct;
+ for(j=0;j<size;j++)for(i=0;i<size;i++){
+  x=(i-size/2)/size*2*rmax; y=(j-size/2)/size*2*rmax;
+  rr=Math.sqrt(x*x+y*y); ct=rr>0?Math.abs(y/rr):0;
+  var d1=densS(rr), d2=densP(rr,ct);
+  if(d1>mxS)mxS=d1; if(d2>mxP)mxP=d2;
+ }
+ if(!(mxS>0))mxS=1; if(!(mxP>0))mxP=1;
+ function putPixel(img,idx,v){
+  img.data[idx]=Math.round(20+235*v);
+  img.data[idx+1]=Math.round(40+180*v);
+  img.data[idx+2]=Math.round(70+120*v);
+  img.data[idx+3]=255;
+ }
+ for(j=0;j<size;j++)for(i=0;i<size;i++){
+  x=(i-size/2)/size*2*rmax; y=(j-size/2)/size*2*rmax;
+  rr=Math.sqrt(x*x+y*y); ct=rr>0?Math.abs(y/rr):0;
+  var vS=Math.pow(Math.max(0,densS(rr))/mxS,0.45);
+  var vP=Math.pow(Math.max(0,densP(rr,ct))/mxP,0.45);
+  var idx=(j*size+i)*4;
+  putPixel(imgS,idx,vS);
+  putPixel(imgP,idx,vP);
+ }
+ g.putImageData(imgS,5,top);
+ g.putImageData(imgP,half+5,top);
+ g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+ g.fillText("s state (spherical)",10,20);
+ g.fillText("p state (lobe)",half+10,20);
+ g.fillText("frame width = "+rmax.toFixed(1)+" a0",10,size+top+18);
+}
+/* ---------- render ---------- */
+function render(){
+ try{
+  var k=document.getElementById("selEl").value, m=MEAS[k];
+  var Zs=+document.getElementById("rngZs").value;
+  var Zp=+document.getElementById("rngZp").value;
+  document.getElementById("lblZs").textContent=Zs.toFixed(4);
+  document.getElementById("lblZp").textContent=Zp.toFixed(4);
+  var Eex=HEV*(Zs*Zs-Zp*Zp)/(m.n*m.n);
+  var lam=(Eex>0)?toAir(HC/Eex):NaN;
+  var nsS=m.n/Zs, nsP=m.n/Zp;
+  var rS=meanR(0,m.n,nsS), rP=meanR(1,m.n,nsP);
+  document.getElementById("elTxt").innerHTML=
+   "<b>"+k+"</b> &nbsp; Z = "+m.Z+" &nbsp; n = "+m.n+
+   "<br>measured: ionization "+m.Is.toFixed(4)+" eV &nbsp;|&nbsp; D-line centroid <b>"+
+   m.cent.toFixed(3)+" nm</b> (air), gap "+m.E.toFixed(4)+" eV<br>"+
+   "measured effective charges: Z<sub>s</sub> = "+m.Zs.toFixed(4)+", Z<sub>p</sub> = "+m.Zp.toFixed(4);
+  var mt=document.getElementById("matchTxt");
+  if(BLIND){
+   mt.innerHTML="<b class='mid'>Challenge mode.</b> Move the sliders until the predicted line matches "+
+    "the measured one, then press \"Hide the answer\" again to see how close you got.";
+  }else{
+   var err=isFinite(lam)?lam-m.cent:NaN;
+   var cls=Math.abs(err)<1?"ok":(Math.abs(err)<20?"mid":"bad");
+   mt.innerHTML="predicted line: <b>"+(isFinite(lam)?fmt(lam,2):"n/a (Zs &le; Zp)")+" nm</b> (air) vs "+
+    "measured <b>"+m.cent.toFixed(2)+" nm</b> &mdash; error <b class='"+cls+"'>"+
+    (err>=0?"+":"")+fmt(err,2)+" nm</b>"+(Math.abs(err)<1?" <span class='ok'>(matched)</span>":"")+
+    "<br>energy gap "+Eex.toFixed(4)+" eV (measured "+m.E.toFixed(4)+") &nbsp;|&nbsp; "+
+    "Z<sub>s</sub>="+Zs.toFixed(4)+" (meas "+m.Zs.toFixed(4)+"), Z<sub>p</sub>="+Zp.toFixed(4)+
+    " (meas "+m.Zp.toFixed(4)+")";
+  }
+  document.getElementById("tbState").innerHTML=
+   "<tr><td>effective charge Z<sub>eff</sub></td><td class='mono'>"+Zs.toFixed(4)+
+    "</td><td class='mono'>"+Zp.toFixed(4)+
+    "</td><td class='dim'>how much nuclear charge the electron actually feels</td></tr>"+
+   "<tr><td>effective quantum number n* = n/Z<sub>eff</sub></td><td class='mono'>"+nsS.toFixed(3)+
+    "</td><td class='mono'>"+nsP.toFixed(3)+
+    "</td><td class='dim'>the shape parameter: smaller n* means tighter, more penetrating</td></tr>"+
+   "<tr><td>effective defect &delta; = n(1&minus;1/Z<sub>eff</sub>)</td><td class='mono'>"+
+    (m.n*(1-1/Zs)).toFixed(3)+"</td><td class='mono'>"+(m.n*(1-1/Zp)).toFixed(3)+
+    "</td><td class='dim'>distance from the ideal hydrogenic shape</td></tr>"+
+   "<tr><td>mean radius &lang;r&rang; (a₀)</td><td class='mono'>"+rS.toFixed(2)+
+    "</td><td class='mono'>"+rP.toFixed(2)+
+    "</td><td class='dim'>the p cloud is <i>larger</i> on average because it penetrates more</td></tr>"+
+   "<tr><td>analytic check &lang;r&rang; (a₀)</td><td class='mono'>"+(1.5*nsS*nsS).toFixed(2)+
+    "</td><td class='mono'>"+(1.5*nsP*nsP-1).toFixed(2)+
+    "</td><td class='dim'>closed-form value, to compare with the numerical column above</td></tr>";
+  drawRad(m,Zs,Zp); drawCloud(m,Zs,Zp);
+ }catch(e){
+  document.getElementById("matchTxt").innerHTML=
+   "<b class='bad'>render error: "+String((e&&e.message)||e)+"</b>";
+ }
+}
+/* ---------- family table ---------- */
+(function(){
+ var h="",ds=[];
+ Object.keys(MEAS).forEach(function(k){
+  var m=MEAS[k], nsS=m.n/m.Zs, nsP=m.n/m.Zp;
+  var rS=meanR(0,m.n,nsS), rP=meanR(1,m.n,nsP);
+  var dS=m.n*(1-1/m.Zs), dP=m.n*(1-1/m.Zp), dd=dS-dP;
+  ds.push({k:k,dd:dd});
+  h+="<tr><td><b>"+k+"</b></td><td>"+m.Z+"</td><td>"+m.n+"</td><td class='mono'>"+m.Zs.toFixed(4)+
+   "</td><td class='mono'>"+m.Zp.toFixed(4)+"</td><td class='mono'>"+nsS.toFixed(3)+
+   "</td><td class='mono'>"+nsP.toFixed(3)+"</td><td class='mono'>"+rS.toFixed(2)+
+   "</td><td class='mono'>"+rP.toFixed(2)+"</td><td class='mono'>"+(rP-rS).toFixed(2)+
+   "</td><td class='mono'>"+dd.toFixed(3)+"</td></tr>";
+ });
+ document.getElementById("tbFam").innerHTML=h;
+ var heavy=ds.filter(function(d){return d.k!=="Li";});
+ var mean=heavy.reduce(function(s,d){return s+d.dd;},0)/heavy.length;
+ var li=ds.filter(function(d){return d.k==="Li";})[0];
+ document.getElementById("famTxt").innerHTML=
+  "<b>Look at the last column.</b> For Na, K, Rb and Cs the penetration difference "+
+  "&delta;<sub>s</sub>&minus;&delta;<sub>p</sub> sits at "+mean.toFixed(3)+
+  " &plusmn; 0.02 &mdash; essentially one number for the whole family. <b>Lithium is "+
+  ((li.dd-mean)/mean*100).toFixed(0)+"% away</b> ("+li.dd.toFixed(3)+"), with the smallest core "+
+  "of the five (only 1s electrons). <span class='dim'>This is the same lithium deviation found earlier "+
+  "in two unrelated parameterizations, from two unrelated measurements &mdash; now visible to anyone "+
+  "who can read a table. The small-core explanation is a hypothesis, not a result.</span>";
+})();
+
+/* ---------- controls ---------- */
+function syncTo(k){
+ var m=MEAS[k];
+ document.getElementById("rngZs").value=m.Zs;
+ document.getElementById("rngZp").value=m.Zp;
+ BLIND=false;
+ render();
+}
+document.getElementById("selEl").addEventListener("change",function(){syncTo(this.value);});
+document.getElementById("rngZs").addEventListener("input",render);
+document.getElementById("rngZp").addEventListener("input",render);
+document.getElementById("btnReset").addEventListener("click",function(){
+ syncTo(document.getElementById("selEl").value);
+});
+document.getElementById("btnBlind").addEventListener("click",function(){
+ BLIND=!BLIND; render();
+});
+syncTo("Na");
+
+document.getElementById("selftest").innerHTML=
+ "APP IS RUNNING — radial self-test: "+(selfPass?"<b class='ok'>PASSED</b> (normalizations, exact &lt;r&gt;, orthogonality)":
+ "<b class='bad'>FAILED</b>")+"; 5 elements loaded; the family table carries the lithium anomaly.";
+</script>
+</body>
+</html>

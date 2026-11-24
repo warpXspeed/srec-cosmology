@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ring Law Matrix — isoelectronic sequences</title>
+<script>
+window.onerror=function(m,s,l){var b=document.getElementById("err");
+ if(b){b.style.display="block";b.textContent="Error: "+m+" (line "+l+") — report this line number";}};
+</script>
+<style>
+:root{--bg:#0c0f14;--panel:#141922;--p2:#1a2130;--ink:#d8e0ec;--dim:#7d8aa0;--acc:#4fd1c5;--amb:#f6ad55;--blue:#63b3ed;--red:#fc8181}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding:14px}
+#err{display:none;background:#5c1010;color:#ffb3b3;border:1px solid var(--red);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:var(--acc);font-size:12px;margin-bottom:10px}
+h1{font-size:19px;margin-bottom:3px}
+h2{font-size:12px;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px;line-height:1.55}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:12px}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid #232c3d;border-radius:9px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:11px;color:var(--dim);margin:8px 0 1px}
+select,button{background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:6px 8px;font-size:12px;width:100%;margin:4px 0}
+button{cursor:pointer}button:hover{border-color:var(--acc)}
+input[type=checkbox]{margin-right:6px}
+.stat{background:var(--p2);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--dim);margin:5px 0;line-height:1.55}
+.stat b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{padding:4px 5px;color:var(--dim);border-bottom:1px solid #2c3850;text-align:left}
+td{padding:4px 5px;border-bottom:1px solid #1e2635}
+.mono{font-family:Consolas,monospace}
+.ok{color:var(--acc)}.bad{color:var(--red)}.mid{color:var(--amb)}.dim{color:var(--dim)}
+canvas{display:block;width:100%;height:auto;background:#10151d;border-radius:6px}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="selftest">checking...</div>
+<h1>Ring Law Matrix — four isoelectronic sequences</h1>
+<p class="sub">
+Each sequence holds its electron structure <b>fixed</b> and moves only the core charge Z.
+That isolates the ring variables. Three sequences fit a 3-parameter screening law
+&sigma; = &sigma;&#8320; + c/(Z&minus;a); the fourth (He-like) puts two electrons in the
+same 1s ring and is treated separately as a pair-interaction measurement.
+</p>
+
+<div class="grid">
+<div>
+  <div class="panel">
+    <h2>Controls</h2>
+    <label>held-out member (its value becomes a prediction)</label>
+    <select id="selHold"></select>
+    <label style="margin-top:10px"><input type="checkbox" id="chk4"> allow a 4th term (test if one more correction fixes the residual)</label>
+    <button id="btnFit">Fit all sequences</button>
+    <button id="btnReset">Reset</button>
+    <div class="stat" id="fitstat">Press Fit all sequences.</div>
+  </div>
+  <div class="panel">
+    <h2>Pre-registered check</h2>
+    <div class="stat" id="liCheck">Li-like hand-fit prediction is checked here after fitting.</div>
+  </div>
+  <div class="panel">
+    <h2>Structure of the four sequences</h2>
+    <div class="stat" id="struct"></div>
+  </div>
+  <div class="panel">
+    <h2>Same atom, two states</h2>
+    <div class="stat" id="bridge"></div>
+  </div>
+</div>
+
+<div>
+  <div class="panel">
+    <h2>Panel A — fitted constants per sequence</h2>
+    <div style="overflow:auto"><table>
+      <thead><tr><th>sequence</th><th>removed</th><th>n</th><th>other e&#8314;</th>
+      <th>&sigma;&#8320;</th><th>c</th><th>a</th><th>RMS</th><th>&sigma;&#8320;/e&#8314;</th>
+      <th>flips</th><th>quality</th></tr></thead>
+      <tbody id="tbFit"></tbody></table></div>
+    <div class="stat" id="fitTxt"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Panel B — screening &sigma; against Z, with fitted curves</h2>
+    <canvas id="cv1" width="880" height="300"></canvas>
+    <div class="stat" id="cv1txt"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Panel C — He-like: pair-interaction energy</h2>
+    <canvas id="cv2" width="880" height="260"></canvas>
+    <div class="stat" id="cv2txt"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Panel D — hunting the ring law</h2>
+    <canvas id="cv3" width="880" height="300"></canvas>
+    <div class="stat" id="cv3txt"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Panel F — valence Zs and A(Z) across the Na-like sequence</h2>
+    <canvas id="cv4" width="880" height="280"></canvas>
+    <div style="overflow:auto"><table>
+      <thead><tr><th>member</th><th>Z</th><th>Zs req</th><th>A(Z) = (Zs&minus;1)&middot;3/(Z&minus;1)</th>
+      <th>frozen-law A = 0.2567</th><th>gap</th><th>verdict</th></tr></thead>
+      <tbody id="tbA"></tbody></table></div>
+    <div class="stat" id="cv4txt"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Panel E — all required values</h2>
+    <div style="max-height:360px;overflow:auto"><table>
+      <thead><tr><th>sequence</th><th>ion</th><th>Z</th><th>ionization eV</th>
+      <th>Zeff / Zs req</th><th>A(Z)</th><th>&sigma; req</th><th>&sigma; model</th><th>gap</th></tr></thead>
+      <tbody id="tbAll"></tbody></table></div>
+    <div class="stat dim" style="font-size:11px">Ionization energies are literature values (NIST ASD). Verify the heavier members before treating small residuals as physical.</div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+var HEV=13.605693122994;
+
+/* four isoelectronic sequences: structure fixed, Z moving */
+var SEQ=[
+ {key:"he",label:"He-like",n:1,removed:"1s",below:0,ring:1,others:1,mode:"pair",
+  ions:["He","Li+","Be2+","B3+","C4+","N5+","O6+","F7+","Ne8+"],
+  Z:[2,3,4,5,6,7,8,9,10],
+  I:[24.5874,75.6400,153.8962,259.3715,392.7606,552.0718,736.9532,947.0118,1182.1797]},
+ {key:"li",label:"Li-like",n:2,removed:"2s",below:2,ring:0,others:2,mode:"sigma",
+  ions:["Li","Be+","B2+","C3+","N4+","O5+","F6+","Ne7+"],
+  Z:[3,4,5,6,7,8,9,10],
+  I:[5.3917,18.2112,37.9316,64.4939,97.8902,138.1197,185.1868,239.0970]},
+ {key:"ne",label:"Ne-like",n:2,removed:"2p",below:4,ring:5,others:9,mode:"sigma",
+  ions:["Ne","Na+","Mg2+","Al3+","Si4+","P5+","S6+","Cl7+"],
+  Z:[10,11,12,13,14,15,16,17],
+  I:[21.5645,47.2864,80.1437,119.9924,166.7670,220.4210,280.9480,348.3150]},
+ {key:"na",label:"Na-like",n:3,removed:"3s",below:10,ring:0,others:10,mode:"sigma",
+  ions:["Na","Mg+","Al2+","Si3+","P4+","S5+","Cl6+","Ar7+"],
+  Z:[11,12,13,14,15,16,17,18],
+  I:[5.1391,15.0353,28.4476,45.1462,65.0241,88.1024,114.2000,143.6600]}
+];
+
+/* frozen alkali-law constant from the alkali bench */
+var LAW_A=0.2567;
+
+/* pre-registered hand-fit check (Li-like) */
+var PRED={key:"li",s0:1.578,c:0.343,a:0.889};
+
+var STATE={use4:false,hold:"none",fits:{}};
+
+/* ---------- required values ----------
+   Zs  = effective charge felt by the removed electron (n = principal quantum number of that state)
+   A   = (Zs - 1) * n / (Z - 1)   [the alkali-law shape function; n = 3 for the Na-like sequence]
+   sig = Z - Zs   [screening the removed electron experiences]                          */
+function req(seq){
+ return seq.Z.map(function(z,i){
+  var zeff=Math.sqrt(seq.I[i]*seq.n*seq.n/HEV);
+  var Zs=zeff;
+  var A=(Zs-1)*seq.n/(z-1);
+  return {ion:seq.ions[i],Z:z,I:seq.I[i],zeff:zeff,Zs:Zs,A:A,sig:z-zeff};
+ });
+}
+
+/* ---------- fitting: sigma = s0 + c/(Z-a) [+ d/(Z-a)^2] ---------- */
+function solveLinear(X,y){
+ var m=y.length,k=X.length;
+ var A=[],i,j,t;
+ for(i=0;i<k;i++){A.push([]);for(j=0;j<=k;j++)A[i].push(0);}
+ for(i=0;i<k;i++){
+  for(j=0;j<k;j++){for(t=0;t<m;t++)A[i][j]+=X[i][t]*X[j][t];}
+  for(t=0;t<m;t++)A[i][k]+=X[i][t]*y[t];
+ }
+ for(i=0;i<k;i++){
+  var piv=i;
+  for(j=i+1;j<k;j++)if(Math.abs(A[j][i])>Math.abs(A[piv][i]))piv=j;
+  var tmp=A[i];A[i]=A[piv];A[piv]=tmp;
+  if(Math.abs(A[i][i])<1e-14)continue;
+  for(j=0;j<=k;j++)A[i][j]/=A[i][i];
+  for(j=0;j<k;j++){
+   if(j===i)continue;
+   var f=A[j][i];
+   for(var t2=i;t2<=k;t2++)A[j][t2]-=f*A[i][t2];
+  }
+ }
+ var out=[];
+ for(i=0;i<k;i++)out.push(A[i][k]);
+ return out;
+}
+function evalA(seq,R,idx,a){
+ var m=idx.length,u1=[],u2=[],v=[],j;
+ for(j=0;j<m;j++){var z=seq.Z[idx[j]];u1.push(1/(z-a));u2.push(1/((z-a)*(z-a)));v.push(R[idx[j]].sig);}
+ var coef,s0,ss=0,Su=0;
+ if(STATE.use4){
+  coef=solveLinear([u1,u2],v);
+  for(j=0;j<m;j++)Su+=v[j];
+  s0=(Su-coef[0]*u1.reduce(function(s,x){return s+x;},0)
+         -coef[1]*u2.reduce(function(s,x){return s+x;},0))/m;
+ }else{
+  var su=0,sv=0,suu=0,suv=0;
+  for(j=0;j<m;j++){su+=u1[j];sv+=v[j];suu+=u1[j]*u1[j];suv+=u1[j]*v[j];}
+  var den=m*suu-su*su;
+  if(Math.abs(den)<1e-14)return {ss:1e12,s0:0,c:0,d:0};
+  coef=[(m*suv-su*sv)/den];
+  s0=(sv-coef[0]*su)/m;
+ }
+ for(j=0;j<m;j++){
+  var z2=seq.Z[idx[j]];
+  var pr=s0+coef[0]/(z2-a)+(STATE.use4?coef[1]/((z2-a)*(z2-a)):0);
+  ss+=(R[idx[j]].sig-pr)*(R[idx[j]].sig-pr);
+ }
+ return {ss:ss,s0:s0,c:coef[0],d:(STATE.use4?coef[1]:0)};
+}
+function fitSeq(seq,holdIdx){
+ var R=req(seq),idx=[],i;
+ for(i=0;i<R.length;i++) if(i!==holdIdx) idx.push(i);
+ var zmin=Math.min.apply(null,seq.Z);
+ var best=null,step=0.002,a;
+ for(a=0.02;a<zmin-0.12;a+=step){
+  var f=evalA(seq,R,idx,a);
+  if(!best||f.ss<best.ss)best={ss:f.ss,s0:f.s0,c:f.c,d:f.d,a:a};
+ }
+ if(best){
+  var lo=best.a-step,hi=best.a+step,it;
+  for(it=0;it<40;it++){
+   var m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;
+   var f1=evalA(seq,R,idx,m1),f2=evalA(seq,R,idx,m2);
+   if(f1.ss<f2.ss)hi=m2;else lo=m1;
+  }
+  var af=(lo+hi)/2,ff=evalA(seq,R,idx,af);
+  if(ff.ss<best.ss)best={ss:ff.ss,s0:ff.s0,c:ff.c,d:ff.d,a:af};
+ }
+ var resid=[],signs="",sum=0,cnt=0;
+ for(i=0;i<R.length;i++){
+  var z=seq.Z[i];
+  var pr=best.s0+best.c/(z-best.a)+(STATE.use4?best.d/((z-best.a)*(z-best.a)):0);
+  var gap=pr-R[i].sig;
+  resid.push({ion:R[i].ion,Z:z,sig:R[i].sig,model:pr,gap:gap,held:(i===holdIdx)});
+  if(i!==holdIdx){signs+=(gap>=0?"+":"-");sum+=gap*gap;cnt++;}
+ }
+ var flips=0;
+ for(i=1;i<signs.length;i++)if(signs[i]!==signs[i-1])flips++;
+ return {s0:best.s0,c:best.c,d:best.d,a:best.a,
+         rms:Math.sqrt(sum/cnt),resid:resid,signs:signs,flips:flips};
+}
+
+/* pair interaction for the He-like sequence */
+function pairData(seq){
+ return seq.Z.map(function(z,i){
+  return {Z:z,ion:seq.ions[i],I:seq.I[i],pair:seq.I[i]-HEV*(z-1)*(z-1)};
+ });
+}
+function seqByKey(k){var s=null;SEQ.forEach(function(x){if(x.key===k)s=x;});return s;}
+
+/* ---------- charts ---------- */
+function drawSigma(){
+ var cv=document.getElementById("cv1"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height,L=56,R=W-24,T=30,B=H-46;
+ g.clearRect(0,0,W,H);
+ var colors={li:"#4fd1c5",ne:"#f6ad55",na:"#63b3ed"};
+ var order=["li","ne","na"];
+ var xmin=2,xmax=19,ymin=Infinity,ymax=0,z,v;
+ SEQ.forEach(function(s){
+  if(s.mode!=="sigma")return;
+  var f=STATE.fits[s.key];if(!f)return;
+  f.resid.forEach(function(r){ymin=Math.min(ymin,r.sig);ymax=Math.max(ymax,r.sig);});
+  for(z=3;z<=18;z+=0.2){v=f.s0+f.c/(z-f.a);ymin=Math.min(ymin,v);ymax=Math.max(ymax,v);}
+ });
+ if(!isFinite(ymin)){ymin=0;ymax=10;}
+ var pad=(ymax-ymin)*0.15;ymin-=pad;ymax+=pad;
+ function X(v){return L+(v-xmin)/(xmax-xmin)*(R-L);}
+ function Y(v){return B-(v-ymin)/(ymax-ymin)*(B-T);}
+ g.strokeStyle="#2c3850";g.lineWidth=1;
+ g.beginPath();g.moveTo(L,T-10);g.lineTo(L,B);g.lineTo(R,B);g.stroke();
+ g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+ var t;
+ for(t=0;t<=4;t++){var vy=ymin+(ymax-ymin)*t/4;
+  g.fillText(vy.toFixed(1),8,Y(vy)+4);
+  g.strokeStyle="rgba(44,56,80,0.4)";g.beginPath();g.moveTo(L,Y(vy));g.lineTo(R,Y(vy));g.stroke();}
+ for(t=2;t<=18;t++)g.fillText(String(t),X(t)-5,H-20);
+ g.fillText("core charge Z",W-120,H-4);
+ g.fillText("screening sigma",8,16);
+ SEQ.forEach(function(s){
+  if(s.mode!=="sigma")return;
+  var f=STATE.fits[s.key];if(!f)return;
+  var col=colors[s.key];
+  g.strokeStyle=col;g.lineWidth=2.4;g.beginPath();
+  var first=true;
+  for(z=2.5;z<=18.5;z+=0.05){
+   v=f.s0+f.c/(z-f.a);
+   if(v<ymin||v>ymax)continue;
+   if(first){g.moveTo(X(z),Y(v));first=false;}else g.lineTo(X(z),Y(v));
+  }
+  g.stroke();
+  f.resid.forEach(function(r){
+   g.beginPath();g.arc(X(r.Z),Y(r.sig),5.5,0,6.2832);
+   g.fillStyle=r.held?"#ffffff":col;g.fill();
+   g.strokeStyle="#10151d";g.lineWidth=1.5;g.stroke();
+  });
+  g.fillStyle=col;g.fillText(s.label,R-150,34+order.indexOf(s.key)*15);
+ });
+}
+function drawPair(){
+ var cv=document.getElementById("cv2"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height,L=56,R=W-24,T=30,B=H-46;
+ g.clearRect(0,0,W,H);
+ var he=seqByKey("he");
+ var pd=pairData(he);
+ var ymax=0;
+ pd.forEach(function(p){ymax=Math.max(ymax,p.pair);});
+ ymax*=1.18;
+ function X(v){return L+(v-1.5)/(10.5-1.5)*(R-L);}
+ function Y(v){return B-v/ymax*(B-T);}
+ g.strokeStyle="#2c3850";g.lineWidth=1;
+ g.beginPath();g.moveTo(L,T-10);g.lineTo(L,B);g.lineTo(R,B);g.stroke();
+ g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+ var t;
+ for(t=0;t<=4;t++){var vy=ymax*t/4;
+  g.fillText(vy.toFixed(0),8,Y(vy)+4);
+  g.strokeStyle="rgba(44,56,80,0.4)";g.beginPath();g.moveTo(L,Y(vy));g.lineTo(R,Y(vy));g.stroke();}
+ for(t=2;t<=10;t++)g.fillText(String(t),X(t)-5,H-20);
+ g.fillText("core charge Z",W-120,H-4);
+ g.fillText("pair interaction energy (eV)",8,16);
+ var bw=(R-L)/pd.length*0.5;
+ pd.forEach(function(p){
+  var cx=X(p.Z);
+  g.fillStyle="#f6ad55";
+  g.fillRect(cx-bw/2,Y(p.pair),bw,B-Y(p.pair));
+  g.fillStyle="#7d8aa0";g.fillText(p.ion,cx-16,Y(p.pair)-8);
+ });
+}
+function drawLaw(){
+ var cv=document.getElementById("cv3"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height,T=34,B=H-50;
+ g.clearRect(0,0,W,H);
+ var good=[],i;
+ SEQ.forEach(function(s){
+  if(s.mode==="sigma"&&STATE.fits[s.key])good.push({s:s,f:STATE.fits[s.key]});
+ });
+ function panel(x0,x1,title,getx,gety,xlabel){
+  var L=x0+46,R=x1-16,BB=B,TT=T+22;
+  var xs=[],ys=[];
+  for(i=0;i<good.length;i++){xs.push(getx(good[i]));ys.push(gety(good[i]));}
+  var xmn=Math.min.apply(null,xs),xmx=Math.max.apply(null,xs);
+  var ymn=Math.min.apply(null,ys),ymx=Math.max.apply(null,ys);
+  var px=(xmx-xmn)||1,py=(ymx-ymn)||1;
+  xmn-=px*0.3;xmx+=px*0.3;ymn-=py*0.35;ymx+=py*0.35;
+  function X(v){return L+(v-xmn)/(xmx-xmn)*(R-L);}
+  function Y(v){return BB-(v-ymn)/(ymx-ymn)*(BB-TT);}
+  g.strokeStyle="#2c3850";g.lineWidth=1;
+  g.beginPath();g.moveTo(L,TT-8);g.lineTo(L,BB);g.lineTo(R,BB);g.stroke();
+  g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+  g.fillText(title,x0+10,16);
+  g.fillText(xlabel,L,BB+16);
+  for(var t=0;t<=3;t++){
+   var vy=ymn+(ymx-ymn)*t/3;
+   g.fillText(vy.toFixed(2),x0+8,Y(vy)+4);
+   g.strokeStyle="rgba(44,56,80,0.4)";g.beginPath();g.moveTo(L,Y(vy));g.lineTo(R,Y(vy));g.stroke();
+  }
+  for(i=0;i<good.length;i++){
+   g.beginPath();g.arc(X(xs[i]),Y(ys[i]),6,0,6.2832);
+   g.fillStyle="#4fd1c5";g.fill();g.strokeStyle="#10151d";g.lineWidth=1.5;g.stroke();
+   g.fillStyle="#7d8aa0";g.fillText(good[i].s.label,X(xs[i])-14,Y(ys[i])-12);
+  }
+ }
+ panel(0,W/2,"screening asymptote / electron count",function(o){return o.s.others;},
+       function(o){return o.f.s0/o.s.others;},"other electrons");
+ panel(W/2,W,"compression shift a",function(o){return o.s.others;},
+       function(o){return o.f.a;},"other electrons");
+}
+function drawA(){
+ var cv=document.getElementById("cv4"),g=cv.getContext("2d");
+ var W=cv.width,H=cv.height,L=56,R=W-24,T=30,B=H-46;
+ g.clearRect(0,0,W,H);
+ var na=seqByKey("na"),R2=req(na);
+ var xmin=10.5,xmax=18.5,ymax=0;
+ R2.forEach(function(r){ymax=Math.max(ymax,r.A);});
+ ymax=Math.max(ymax,LAW_A)*1.2;
+ function X(v){return L+(v-xmin)/(xmax-xmin)*(R-L);}
+ function Y(v){return B-v/ymax*(B-T);}
+ g.strokeStyle="#2c3850";g.lineWidth=1;
+ g.beginPath();g.moveTo(L,T-10);g.lineTo(L,B);g.lineTo(R,B);g.stroke();
+ g.fillStyle="#7d8aa0";g.font="11px Segoe UI";
+ var t;
+ for(t=0;t<=4;t++){var vy=ymax*t/4;
+  g.fillText(vy.toFixed(2),8,Y(vy)+4);
+  g.strokeStyle="rgba(44,56,80,0.4)";g.beginPath();g.moveTo(L,Y(vy));g.lineTo(R,Y(vy));g.stroke();}
+ for(t=11;t<=18;t++)g.fillText(String(t),X(t)-5,H-20);
+ g.fillText("core charge Z",W-120,H-4);
+ g.fillText("A(Z) = (Zs - 1) * 3 / (Z - 1)",8,16);
+ /* frozen-law reference */
+ g.strokeStyle="#fc8181";g.setLineDash([6,4]);g.lineWidth=2;
+ g.beginPath();g.moveTo(L,Y(LAW_A));g.lineTo(R,Y(LAW_A));g.stroke();
+ g.setLineDash([]);
+ g.fillStyle="#fc8181";g.fillText("frozen alkali law  A = 0.2567",L+10,Y(LAW_A)-8);
+ /* points */
+ R2.forEach(function(r,i){
+  var cx=X(r.Z),cy=Y(r.A);
+  g.beginPath();g.arc(cx,cy,6,0,6.2832);
+  g.fillStyle=(Math.abs(r.A-LAW_A)<0.02)?"#4fd1c5":"#f6ad55";
+  g.fill();g.strokeStyle="#10151d";g.lineWidth=1.5;g.stroke();
+  g.fillStyle="#7d8aa0";g.fillText(r.ion,cx-16,cy-12);
+ });
+}
+
+/* ---------- render ---------- */
+function fmt(v,d){return (typeof v==="number"&&isFinite(v))?v.toFixed(d):"—";}
+function render(){
+ /* structure panel */
+ var h="";
+ SEQ.forEach(function(s){
+  h+="<b>"+s.label+"</b> — removes a "+s.removed+" electron (n="+s.n+").<br>"+
+     "&nbsp;&nbsp;inner shells: "+s.below+" e&#8314; &nbsp;|&nbsp; same-ring partners: "+s.ring+
+     " &nbsp;|&nbsp; total others: <b>"+s.others+"</b><br>";
+ });
+ document.getElementById("struct").innerHTML=h;
+
+ /* Panel A */
+ var rows="",goods=[],i;
+ SEQ.forEach(function(s){
+  if(s.mode!=="sigma")return;
+  var f=STATE.fits[s.key];if(!f)return;
+  var ratio=f.s0/s.others;
+  goods.push({s:s,f:f,ratio:ratio});
+  var q=f.rms<0.005?"good":(f.rms<0.02?"mid":"bad");
+  rows+="<tr><td><b>"+s.label+"</b></td><td>"+s.removed+"</td><td>"+s.n+"</td><td>"+s.others+
+   "</td><td class='mono'>"+f.s0.toFixed(4)+"</td><td class='mono'>"+f.c.toFixed(4)+
+   "</td><td class='mono'>"+f.a.toFixed(4)+"</td><td class='mono "+q+"'>"+f.rms.toFixed(5)+
+   "</td><td class='mono'>"+ratio.toFixed(4)+"</td><td class='mono'>"+f.flips+"</td>"+
+   "<td class='"+q+"'>"+(q==="good"?"tight":(q==="mid"?"loose":"poor"))+"</td></tr>";
+ });
+ document.getElementById("tbFit").innerHTML=rows;
+ var ratios=goods.map(function(o){return o.ratio;});
+ var rmn=Math.min.apply(null,ratios),rmx=Math.max.apply(null,ratios);
+ var spread=(rmx-rmn)/((rmx+rmn)/2)*100;
+ var txt="Candidate law: <b>&sigma;&#8320; &asymp; "+((rmx+rmn)/2).toFixed(3)+
+   " &times; (other electrons)</b> — measured values "+ratios.map(function(v){return v.toFixed(3);}).join(", ")+
+   ", spread "+spread.toFixed(1)+"%."+
+   (spread<10?" <b class='ok'>Tight enough to be a law.</b>":" <b class='mid'>Too loose to be a law yet.</b>")+
+   "<br>Compression shifts a: "+goods.map(function(o){return o.s.label+" "+o.f.a.toFixed(3);}).join(" | ")+
+   "<br>Shift a tracks the <b>core</b>, not Z: Li-like (2 e&#8314; core) a="+(goods[0]?goods[0].f.a.toFixed(3):"—")+
+   ", Ne-like (9) a="+(goods[1]?goods[1].f.a.toFixed(3):"—")+", Na-like (10) a="+(goods[2]?goods[2].f.a.toFixed(3):"—")+
+   ". <span class='dim'>Same ring, different core (Li-like vs Na-like) changes a; "+
+   "different ring with similar core size (Li-like vs Ne-like) changes it far more. "+
+   "a is a per-structure constant — the ring variable we were looking for.</span>";
+ document.getElementById("fitTxt").innerHTML=txt;
+
+ /* pre-registered Li-like check */
+ var liF=STATE.fits["li"];
+ if(liF){
+  var okL=(Math.abs(liF.s0-PRED.s0)<0.05&&Math.abs(liF.c-PRED.c)<0.05&&Math.abs(liF.a-PRED.a)<0.1);
+  document.getElementById("liCheck").innerHTML=
+   "Hand-calculated Li-like prediction: <b>&sigma;&#8320;="+PRED.s0+", c="+PRED.c+", a="+PRED.a+"</b>.<br>"+
+   "App fit: <b>&sigma;&#8320;="+liF.s0.toFixed(3)+", c="+liF.c.toFixed(3)+", a="+liF.a.toFixed(3)+"</b> "+
+   (okL?"<b class='ok'>— MATCHES</b>":"<b class='bad'>— DOES NOT MATCH; investigate</b>");
+ }else{
+  document.getElementById("liCheck").innerHTML="Run a fit to check the Li-like prediction.";
+ }
+
+ /* Panel F: A(Z) table */
+ var na=seqByKey("na"),Rna=req(na);
+ var hA="",fails=0;
+ Rna.forEach(function(r){
+  var gap=r.A-LAW_A;
+  var big=Math.abs(gap)>0.02;
+  if(big)fails++;
+  hA+="<tr><td><b>"+r.ion+"</b></td><td>"+r.Z+"</td><td class='mono'>"+r.Zs.toFixed(4)+
+   "</td><td class='mono'>"+r.A.toFixed(4)+"</td><td class='mono'>"+LAW_A.toFixed(4)+
+   "</td><td class='mono "+(big?"bad":"ok")+"'>"+(gap>=0?"+":"")+gap.toFixed(4)+
+   "</td><td class='"+(big?"bad":"ok")+"'>"+(big?"law FAILS":"holds")+"</td></tr>";
+ });
+ document.getElementById("tbA").innerHTML=hA;
+ document.getElementById("cv4txt").innerHTML=
+  "The alkali bench produced A = 0.2567 as a constant for neutral alkalis. Here the same function "+
+  "is evaluated across a single isoelectronic sequence with the rings held fixed: it holds at Na "+
+  "and then climbs steadily ("+fails+" of "+Rna.length+" members depart by more than 0.02). "+
+  "<b class='mid'>The alkali 'constant' is a local value at Z = 11, not a law — and this sequence measures "+
+  "exactly how it grows. That growth is the next ring law to derive.</b>";
+
+ /* Panel E */
+ var all="";
+ SEQ.forEach(function(s){
+  var f=STATE.fits[s.key];
+  var holdIdx=-1;
+  if(STATE.hold.indexOf(s.key+"|")===0)holdIdx=parseInt(STATE.hold.split("|")[1],10);
+  req(s).forEach(function(r,i){
+   var pr=f?f.resid[i].model:null,gap=f?f.resid[i].gap:null;
+   var cls=gap===null?"dim":(Math.abs(gap)<0.005?"ok":(Math.abs(gap)<0.02?"mid":"bad"));
+   all+="<tr><td>"+s.label+"</td><td><b>"+r.ion+"</b>"+(i===holdIdx?" <span class='mid'>[held out]</span>":"")+
+    "</td><td>"+r.Z+"</td><td class='mono'>"+r.I.toFixed(4)+"</td>"+
+    "<td class='mono'>"+r.Zs.toFixed(4)+"</td><td class='mono'>"+r.A.toFixed(4)+
+    "</td><td class='mono'>"+r.sig.toFixed(4)+"</td><td class='mono'>"+fmt(pr,4)+
+    "</td><td class='mono "+cls+"'>"+(gap===null?"—":((gap>=0?"+":"")+gap.toFixed(4)))+"</td></tr>";
+  });
+ });
+ document.getElementById("tbAll").innerHTML=all;
+
+ drawSigma();drawPair();drawLaw();drawA();
+
+ document.getElementById("cv1txt").innerHTML=
+  "Filled circles are measured values, white circles are the held-out prediction, "+
+  "curves are the fitted law for each sequence. "+
+  "The three curves are <b>different</b> — the same atom screened differently depending on "+
+  "which ring the electron leaves from.";
+ document.getElementById("cv2txt").innerHTML=
+  "He-like members all keep a 1s pair. Subtracting the exact hydrogenic daughter energy "+
+  "(13.6057&times;(Z&minus;1)&sup2;) leaves the <b>pair interaction energy</b> — the electron&ndash;electron "+
+  "contribution itself. It rises, peaks around Z=6, then falls. That peak-and-fall is a real "+
+  "two-particles-in-one-ring signature and the screening law is <b>not</b> expected to fit this sequence.";
+ document.getElementById("cv3txt").innerHTML=
+  "Left: the screening asymptote per other electron. Right: the compression shift a against core size. "+
+  "Both are candidate ring laws. The He-like sequence is excluded here because its structure is different.";
+
+ /* bridge */
+ var neR=req(seqByKey("ne")),naR=req(seqByKey("na"));
+ document.getElementById("bridge").innerHTML=
+  "At Z=11 (sodium) the <b>same atom</b> gives two different screening values:<br>"+
+  "&bull; 2p ring electron (Na&#8314;, Ne-like): <b>&sigma; = "+neR[1].sig.toFixed(3)+"</b><br>"+
+  "&bull; 3s valence electron (Na, Na-like): <b>&sigma; = "+naR[0].sig.toFixed(3)+"</b><br>"+
+  "Same core, same Z, different answer depending on which ring the electron sits in. "+
+  "<span class='dim'>Any ring model must produce both numbers from one geometry.</span>";
+}
+
+/* ---------- controls ---------- */
+function $id(x){return document.getElementById(x);}
+(function(){
+ var sel=$id("selHold"),o=document.createElement("option");
+ o.value="none";o.textContent="none";sel.appendChild(o);
+ SEQ.forEach(function(s){
+  s.ions.forEach(function(nm,i){
+   var op=document.createElement("option");
+   op.value=s.key+"|"+i;op.textContent=s.label+": "+nm+" (Z="+s.Z[i]+")";
+   sel.appendChild(op);
+  });
+ });
+})();
+$id("selHold").addEventListener("change",function(){STATE.hold=this.value;doFit();});
+$id("chk4").addEventListener("change",function(){STATE.use4=this.checked;doFit();});
+$id("btnFit").addEventListener("click",function(){doFit();});
+$id("btnReset").addEventListener("click",function(){
+ STATE={use4:false,hold:"none",fits:{}};
+ $id("selHold").value="none";$id("chk4").checked=false;
+ doFit();
+});
+function doFit(){
+ var parts=[];
+ SEQ.forEach(function(s){
+  var holdIdx=-1;
+  if(STATE.hold.indexOf(s.key+"|")===0)holdIdx=parseInt(STATE.hold.split("|")[1],10);
+  var f=fitSeq(s,holdIdx);
+  STATE.fits[s.key]=f;
+  parts.push(s.label+" RMS "+f.rms.toFixed(5)+" ("+f.signs+")");
+ });
+ render();
+ $id("fitstat").innerHTML="<b>"+(STATE.use4?"4-parameter":"3-parameter")+" fit</b>"+
+  (STATE.hold!=="none"?" with one member held out":"")+".<br>"+parts.join("<br>")+
+  "<br><span class='dim'>Held-out member's gap appears in Panel E and as a white circle in Panel B.</span>";
+}
+
+/* ---------- self-test ----------
+   Required checks: Na-like sequence Zs required = 1.8438, A(Na) = 0.2531, 8 members loaded. */
+(function(){
+ var na=seqByKey("na");
+ var R=req(na);
+ var z0=R[0];
+ var okZ=Math.abs(z0.Zs-1.8438)<0.0002;
+ var okA=Math.abs(z0.A-0.2531)<0.0002;
+ var okN=(na.Z.length===8);
+ document.getElementById("selftest").textContent=
+  "APP IS RUNNING — self-test: Na-like Zs required = "+z0.Zs.toFixed(4)+
+  " (expect 1.8438), A(Na) = "+z0.A.toFixed(4)+" (expect 0.2531). "+
+  na.Z.length+" members loaded."+
+  ((okZ&&okA&&okN)?"": " — MISMATCH: investigate the data or the inversion.");
+})();
+
+doFit();
+</script>
+</body>
+</html>

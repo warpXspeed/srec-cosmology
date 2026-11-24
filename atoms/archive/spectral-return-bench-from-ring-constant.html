@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spectral Return Bench — from ring constants to wavelengths</title>
+<script>
+window.onerror=function(m,s,l){var b=document.getElementById("err");
+ if(b){b.style.display="block";b.textContent="Error: "+m+" (line "+l+") — report this line number";}};
+</script>
+<style>
+:root{--bg:#0c0f14;--panel:#141922;--p2:#1a2130;--ink:#d8e0ec;--dim:#7d8aa0;--acc:#4fd1c5;--amb:#f6ad55;--blue:#63b3ed;--red:#fc8181}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding:14px}
+#err{display:none;background:#5c1010;color:#ffb3b3;border:1px solid var(--red);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+#selftest{color:var(--acc);font-size:12px;margin-bottom:10px}
+h1{font-size:19px;margin-bottom:3px}
+h2{font-size:12px;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px;line-height:1.55}
+.panel{background:var(--panel);border:1px solid #232c3d;border-radius:9px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:11px;color:var(--dim);margin:6px 0 2px}
+select{background:var(--p2);color:var(--ink);border:1px solid #2c3850;border-radius:5px;padding:5px 8px;font-size:12px;width:100%}
+.stat{background:var(--p2);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--dim);margin:5px 0;line-height:1.55}
+.stat b{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{padding:4px 5px;color:var(--dim);border-bottom:1px solid #2c3850;text-align:left}
+td{padding:4px 5px;border-bottom:1px solid #1e2635}
+.mono{font-family:Consolas,monospace}
+.ok{color:var(--acc)}.bad{color:var(--red)}.mid{color:var(--amb)}.dim{color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="err"></div>
+<div id="selftest">checking...</div>
+<h1>Spectral Return Bench</h1>
+<p class="sub">
+The ring constants are used to predict the alkali D-line centroid and doublet split. All five atoms
+fitted together is <b>retrodiction</b> (circular — the constants came from this data). The real test is
+the held-out atom. The expected honest result: prediction errors of tens of nm, quantifying the gap
+between what the binding law describes and what the spectrum demands.
+</p>
+
+<div class="panel">
+<h2>Controls</h2>
+<label>held-out atom (its D line becomes a genuine prediction)</label>
+<select id="selHold">
+ <option value="">none (retrodiction — circular, shown for reference)</option>
+ <option>Li</option><option>Na</option><option>K</option><option>Rb</option><option>Cs</option>
+</select>
+</div>
+
+<div class="panel">
+<h2>Panel 1 — per-atom law constants (derived from measurement)</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>atom</th><th>Z</th><th>N</th><th>centroid nm (air)</th><th>gap energy eV</th>
+<th>A = &Delta;Z&sup2;&middot;N/(Z&minus;1)</th><th>split nm</th><th>&zeta; = &Delta;E&#8322;&middot;N&sup3;/Z&#8308;</th></tr></thead>
+<tbody id="tbData"></tbody></table></div>
+<div class="stat dim" style="font-size:11px">A and &zeta; are inverted from the measured D lines and ionization energies — they are derived quantities, not inputs.</div>
+</div>
+
+<div class="panel">
+<h2>Panel 2 — held-out prediction: D-line centroid</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>atom</th><th>A used</th><th>predicted eV</th><th>measured eV</th><th>predicted nm</th>
+<th>measured nm</th><th>error nm</th><th>status</th></tr></thead>
+<tbody id="tbCent"></tbody></table></div>
+<div class="stat" id="centTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Panel 3 — held-out prediction: doublet split</h2>
+<div style="overflow:auto"><table>
+<thead><tr><th>atom</th><th>&zeta; used</th><th>predicted split nm</th><th>measured split nm</th>
+<th>error nm</th><th>status</th></tr></thead>
+<tbody id="tbSplit"></tbody></table></div>
+<div class="stat" id="splitTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Panel 4 — the precision gap</h2>
+<div class="stat" id="gapTxt"></div>
+</div>
+
+<div class="panel">
+<h2>Recorded for the model</h2>
+<div class="stat" id="verdict"></div>
+</div>
+
+<script>
+"use strict";
+var HEV=13.605693122994, HC=1239.8419843320026;
+
+var ALK=[
+ {k:"Li",Z:3, N:2,Is:5.391714,D1:670.791, D2:670.776},
+ {k:"Na",Z:11,N:3,Is:5.139076,D1:589.592, D2:588.995},
+ {k:"K", Z:19,N:4,Is:4.340664,D1:770.108, D2:766.701},
+ {k:"Rb",Z:37,N:5,Is:4.177127,D1:794.979, D2:780.241},
+ {k:"Cs",Z:55,N:6,Is:3.893905,D1:894.592, D2:852.347}
+];
+function airIndex(nm){var s=1000/nm,s2=s*s;
+ return 1+(6432.8+2949810/(146-s2)+25540/(41-s2))*1e-8;}
+function toAir(lv){var la=lv,i;for(i=0;i<8;i++)la=lv/airIndex(la);return la;}
+function fromAir(la){var lv=la,i;for(i=0;i<8;i++)lv=la*airIndex(lv);return lv;}
+
+var D=ALK.map(function(a){
+ var cent=(a.D1+a.D2)/2, vac=fromAir(cent), E=HC/vac;
+ var split=Math.abs(a.D1-a.D2), dEs=split*E/vac;
+ return {k:a.k,Z:a.Z,N:a.N,Is:a.Is,cent:cent,vac:vac,E:E,
+         A:E*a.N*a.N/HEV*a.N/(a.Z-1),
+         split:split,dEs:dEs,zeta:dEs*a.N*a.N*a.N/(a.Z*a.Z*a.Z*a.Z)};
+});
+
+/* self-test: Na anchor must reproduce the twice-verified value */
+(function(){
+ var na=null;D.forEach(function(d){if(d.k==="Na")na=d;});
+ var okA=Math.abs(na.A-0.41739)<0.0005;
+ var zs=Math.sqrt(5.139076*9/HEV);
+ var okZ=Math.abs(zs-1.8438)<0.0005;
+ document.getElementById("selftest").textContent=
+  "APP IS RUNNING — self-test: Na Zs = "+zs.toFixed(4)+" (expect 1.8438); "+
+  "Na A = "+na.A.toFixed(4)+" (expect 0.4174). "+D.length+" atoms."+
+  ((okA&&okZ)?" — anchors pass.":" — ANCHOR FAILED.");
+})();
+
+function fmt(v,d){return (typeof v==="number"&&isFinite(v))?v.toFixed(d):"—";}
+
+function render(){
+ var hold=document.getElementById("selHold").value;
+ var train=D.filter(function(d){return d.k!==hold;});
+ var meanA=0,meanZ=0;
+ train.forEach(function(d){meanA+=d.A;meanZ+=d.zeta;});
+ meanA/=train.length; meanZ/=train.length;
+
+ /* panel 1 */
+ var h="";
+ D.forEach(function(d){
+  var held=(d.k===hold)?" <span class='mid'>[held out]</span>":"";
+  h+="<tr><td><b>"+d.k+"</b>"+held+"</td><td>"+d.Z+"</td><td>"+d.N+
+   "</td><td class='mono'>"+d.cent.toFixed(3)+"</td><td class='mono'>"+d.E.toFixed(5)+
+   "</td><td class='mono'>"+d.A.toFixed(4)+"</td><td class='mono'>"+d.split.toFixed(3)+
+   "</td><td class='mono'>"+d.zeta.toExponential(3)+"</td></tr>";
+ });
+ document.getElementById("tbData").innerHTML=h;
+
+ /* panel 2: centroid prediction */
+ var ch="",errs=[];
+ D.forEach(function(d){
+  var isHold=(d.k===hold);
+  var A=isHold?meanA:d.A;
+  var dEp=HEV*A*(d.Z-1)/(d.N*d.N*d.N);
+  var lamP=toAir(HC/dEp);
+  var err=lamP-d.cent;
+  if(isHold)errs.push({k:d.k,err:err,rel:Math.abs(err)/d.cent*100});
+  var cls=isHold?(Math.abs(err)<1?"ok":(Math.abs(err)<10?"mid":"bad")):"dim";
+  ch+="<tr><td><b>"+d.k+"</b>"+(isHold?" <span class='mid'>[PREDICTED]</span>":"")+
+   "</td><td class='mono'>"+A.toFixed(4)+"</td><td class='mono'>"+dEp.toFixed(5)+
+   "</td><td class='mono'>"+d.E.toFixed(5)+"</td><td class='mono'>"+lamP.toFixed(2)+
+   "</td><td class='mono'>"+d.cent.toFixed(2)+"</td><td class='mono "+cls+"'>"+
+   (err>=0?"+":"")+err.toFixed(2)+"</td><td class='"+cls+"'>"+
+   (isHold?(Math.abs(err)<1?"within 1 nm":(Math.abs(err)<10?"structure-level":"law fails here")):"retrodicted")+"</td></tr>";
+ });
+ document.getElementById("tbCent").innerHTML=ch;
+ var worst=0,wc="";
+ errs.forEach(function(e){if(Math.abs(e.err)>Math.abs(worst)){worst=e.err;wc=e.k;}});
+ document.getElementById("centTxt").innerHTML=
+  (hold
+   ?"Held-out "+hold+": predicted centroid off by <b class='"+(Math.abs(worst)<1?"ok":(Math.abs(worst)<10?"mid":"bad"))+"'>"+
+    (worst>=0?"+":"")+worst.toFixed(2)+" nm</b> ("+
+    (errs[0]?errs[0].rel.toFixed(1):"—")+"%).<br>"+
+    "<span class='dim'>Expected honest result: tens of nm. The 2-constant law describes the family but "+
+    "does not predict at spectral precision — quantifying that gap is the point of this bench.</span>"
+   :"<b class='mid'>Retrodiction mode:</b> every atom used its own A, so exact agreement is circular and means nothing. Select a held-out atom for the real test.");
+
+ /* panel 3: split prediction */
+ var sh="";
+ D.forEach(function(d){
+  var isHold=(d.k===hold);
+  var zeta=isHold?meanZ:d.zeta;
+  var dEsp=zeta*d.Z*d.Z*d.Z*d.Z/(d.N*d.N*d.N);
+  var splitP=dEsp*d.vac/d.E;
+  var err=splitP-d.split;
+  var cls=isHold?(err/d.split>-0.5&&err/d.split<0.5?"mid":"bad"):"dim";
+  sh+="<tr><td><b>"+d.k+"</b>"+(isHold?" <span class='mid'>[PREDICTED]</span>":"")+
+   "</td><td class='mono'>"+zeta.toExponential(3)+"</td><td class='mono'>"+splitP.toFixed(3)+
+   "</td><td class='mono'>"+d.split.toFixed(3)+"</td><td class='mono "+cls+"'>"+
+   (err>=0?"+":"")+err.toFixed(3)+"</td><td class='"+cls+"'>"+
+   (isHold?(Math.abs(err/d.split)<0.5?"within 50%":"off by "+Math.abs(err/d.split*100).toFixed(0)+"%"):"retrodicted")+"</td></tr>";
+ });
+ document.getElementById("tbSplit").innerHTML=sh;
+ var zSpread=[];
+ train.forEach(function(d){zSpread.push(d.zeta);});
+ var zmin=Math.min.apply(null,zSpread),zmax=Math.max.apply(null,zSpread);
+ document.getElementById("splitTxt").innerHTML=
+  "Training &zeta; spread: "+zmin.toExponential(2)+" to "+zmax.toExponential(2)+
+  " (factor "+(zmax/zmin).toFixed(1)+", declining smoothly with Z).<br>"+
+  "<span class='dim'>The smooth decline is the missing relativistic term — the split is a core-layer "+
+  "effect whose &zeta; is not constant until that term is added.</span>";
+
+ /* panel 4: precision gap */
+ var trainScatter=0;
+ train.forEach(function(d){trainScatter+=(d.A-meanA)*(d.A-meanA);});
+ trainScatter=Math.sqrt(trainScatter/train.length);
+ document.getElementById("gapTxt").innerHTML=
+  "Required precision for a spectral prediction: <b>~0.0005 eV</b> (0.2 nm at these wavelengths).<br>"+
+  "Scatter of the 2-constant law: <b>A varies &plusmn;"+trainScatter.toFixed(3)+
+  "</b> (&asymp;"+(trainScatter/meanA*100).toFixed(0)+"%), which at D-line energies translates to "+
+  "<b>&asymp;"+(HEV*trainScatter).toFixed(3)+" eV</b> — two orders of magnitude above spectral precision.<br>"+
+  "<b class='mid'>The gap between the binding law and the spectrum is the size of the next missing term. "+
+  "The candidates already measured: the filled-ring coherence (+0.164), the half-filled exchange "+
+  "(&plusmn;0.23), the ring compression &sigma;(Z), and the relativistic decline in &zeta;.</b>";
+
+ document.getElementById("verdict").innerHTML=
+  "<b>Recorded:</b><br>"+
+  "&bull; ring-level terms are configuration properties, not single-electron properties — confirmed in "+
+  "filled-ring, half-filled-ring, and s-pair cases<br>"+
+  "&bull; the 2-constant penetration law <b>describes</b> the alkali family but <b>does not predict</b> "+
+  "at spectral precision (expected gap: two orders of magnitude)<br>"+
+  "&bull; the split's &zeta; declines smoothly with Z — the relativistic core term, quantified and waiting "+
+  "to be modelled<br>"+
+  "&bull; Mg-like a(3s)=0.3310 remains provisional (RMS 0.0183; verify S&#8308;&#8314;, Cl&#8309;&#8314;, Ar&#8310;&#8314; against NIST)<br>"+
+  "<span class='dim'>The honest path: each missing term must close part of the 0.1&ndash;0.4 eV gap. "+
+  "A term that closes the gap for one atom but not the others is a fit; one that closes it for all is a law.</span>";
+}
+
+document.getElementById("selHold").addEventListener("change",render);
+render();
+</script>
+</body>
+</html>
